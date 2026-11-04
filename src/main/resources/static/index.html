@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskFlow & Workout</title>
+    <script>
+        (function () {
+            try {
+                var s = localStorage.getItem('tf-theme');
+                var dark = s ? s === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (dark) document.documentElement.classList.add('dark');
+            } catch (e) {}
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'monospace'] },
+                    colors: {
+                        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' },
+                        page: 'var(--page)', surface: 'var(--surface)', surface2: 'var(--surface2)',
+                        ink: 'var(--ink)', muted: 'var(--muted)', line: 'var(--line)', soft: 'var(--soft)'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --page:#f3f5ff; --surface:#ffffff; --surface2:#f1f3fb; --ink:#0f172a; --muted:#64748b; --line:#e6e9f6; --soft:#eef2ff;
+            --glow1: rgba(99,102,241,.18); --glow2: rgba(139,92,246,.14);
+        }
+        html.dark {
+            --page:#0a0f1f; --surface:#121933; --surface2:#1a2243; --ink:#e8ecff; --muted:#93a0c6; --line:#222c52; --soft:#1d2550;
+            --glow1: rgba(99,102,241,.22); --glow2: rgba(139,92,246,.16);
+            color-scheme: dark;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background:
+                    radial-gradient(1100px 560px at 8% -10%, var(--glow1), transparent 60%),
+                    radial-gradient(900px 480px at 100% 0%, var(--glow2), transparent 55%), var(--page);
+            background-attachment: fixed;
+            transition: background-color .3s, color .3s;
+        }
+        *:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
+
+        @keyframes fadeUp { from { opacity:0; transform: translateY(14px); } to { opacity:1; transform:none; } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes popIn { from { opacity:0; transform: scale(.95) translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes toastIn { from { opacity:0; transform: translateY(16px) scale(.96); } to { opacity:1; transform:none; } }
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+        .anim-up { animation: fadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+        .anim-fade { animation: fadeIn .25s ease both; }
+        .anim-pop { animation: popIn .3s cubic-bezier(.22,1,.36,1) both; }
+        .anim-toast { animation: toastIn .3s cubic-bezier(.22,1,.36,1) both; }
+        .anim-float { animation: floaty 4s ease-in-out infinite; }
+        .shake { animation: shake .4s ease; }
+        .removing { opacity:0; transform: translateX(40px) scale(.96); max-height:0 !important; margin:0 !important; overflow:hidden; transition: all .3s ease; }
+        .skeleton { position:relative; overflow:hidden; background: var(--surface2); }
+        .skeleton::after { content:''; position:absolute; inset:0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); animation: shimmer 1.4s infinite; }
+        .grow { transition: width .8s cubic-bezier(.22,1,.36,1), height .8s cubic-bezier(.22,1,.36,1), stroke-dashoffset 1s cubic-bezier(.22,1,.36,1); }
+
+        .check { appearance:none; -webkit-appearance:none; width:26px; height:26px; border-radius:9999px; border:2px solid #a5b4fc; background: transparent; cursor:pointer; display:grid; place-content:center; transition: all .2s ease; flex-shrink:0; }
+        .check:hover { border-color:#6366f1; transform: scale(1.1); }
+        .check::before { content:''; width:12px; height:7px; border-left:3px solid #fff; border-bottom:3px solid #fff; transform: rotate(-45deg) scale(0); margin-top:-2px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+        .check:checked { background: linear-gradient(135deg,#6366f1,#8b5cf6); border-color: transparent; }
+        .check:checked::before { transform: rotate(-45deg) scale(1); }
+        ::-webkit-scrollbar { width:8px; height:8px; }
+        ::-webkit-scrollbar-thumb { background: var(--line); border-radius:9999px; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+    </style>
+</head>
+<body class="text-ink antialiased min-h-screen">
+
+<!-- ============ SIDEBAR ============ -->
+<aside class="fixed z-30 bottom-0 inset-x-0 md:inset-y-0 md:left-0 md:w-20 xl:w-64 bg-surface border-t md:border-t-0 md:border-r border-line flex md:flex-col transition-colors">
+    <div class="hidden md:flex items-center justify-center xl:justify-start gap-3 h-20 xl:px-6 shrink-0">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 grid place-content-center text-white shadow-lg shadow-brand-500/30">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div class="hidden xl:flex flex-col">
+            <span class="font-extrabold text-xl tracking-tight leading-none">TaskFlow</span>
+            <span class="text-[10px] text-brand-500 font-bold tracking-widest mt-1">PRO & WORKOUT</span>
+        </div>
+    </div>
+
+    <nav class="flex md:flex-col flex-1 md:flex-none justify-around md:justify-start md:px-3 md:gap-1.5 py-1.5 md:py-2">
+        <button data-nav="tasks" class="nav-btn flex flex-col xl:flex-row items-center justify-center xl:justify-start gap-1 xl:gap-3 px-3 py-2 xl:py-3 rounded-2xl transition-all min-w-[56px] md:min-w-0">
+            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+            <span class="text-[10px] xl:text-sm font-semibold md:hidden xl:inline" data-i18n="navTasks"></span>
+            <span class="nav-count hidden xl:inline-flex ml-auto min-w-[24px] justify-center text-xs font-bold px-2 py-0.5 rounded-full" data-count-for="tasks"></span>
+        </button>
+        <button data-nav="today" class="nav-btn flex flex-col xl:flex-row items-center justify-center xl:justify-start gap-1 xl:gap-3 px-3 py-2 xl:py-3 rounded-2xl transition-all min-w-[56px] md:min-w-0">
+            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z"/></svg>
+            <span class="text-[10px] xl:text-sm font-semibold md:hidden xl:inline" data-i18n="navToday"></span>
+            <span class="nav-count hidden xl:inline-flex ml-auto min-w-[24px] justify-center text-xs font-bold px-2 py-0.5 rounded-full" data-count-for="today"></span>
+        </button>
+        <button data-nav="overdue" class="nav-btn flex flex-col xl:flex-row items-center justify-center xl:justify-start gap-1 xl:gap-3 px-3 py-2 xl:py-3 rounded-2xl transition-all min-w-[56px] md:min-w-0 relative">
+            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-[10px] xl:text-sm font-semibold md:hidden xl:inline" data-i18n="navOverdue"></span>
+            <span class="nav-count hidden xl:inline-flex ml-auto min-w-[24px] justify-center text-xs font-bold px-2 py-0.5 rounded-full" data-count-for="overdue"></span>
+            <span id="overdueDot" class="xl:hidden absolute top-1.5 right-3 w-2.5 h-2.5 rounded-full bg-rose-500 hidden"></span>
+        </button>
+        <button data-nav="workout" class="nav-btn flex flex-col xl:flex-row items-center justify-center xl:justify-start gap-1 xl:gap-3 px-3 py-2 xl:py-3 rounded-2xl transition-all min-w-[56px] md:min-w-0">
+            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+            <span class="text-[10px] xl:text-sm font-semibold md:hidden xl:inline" data-i18n="navWorkout">Воркаут</span>
+            <span class="hidden xl:inline-flex ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-500">NEW</span>
+        </button>
+        <button data-nav="stats" class="nav-btn flex flex-col xl:flex-row items-center justify-center xl:justify-start gap-1 xl:gap-3 px-3 py-2 xl:py-3 rounded-2xl transition-all min-w-[56px] md:min-w-0">
+            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20V10m6 10V4m6 16v-7m4 7H2"/></svg>
+            <span class="text-[10px] xl:text-sm font-semibold md:hidden xl:inline" data-i18n="navStats"></span>
+        </button>
+    </nav>
+
+    <!-- Кликабельный виджет профиля в сайдбаре -->
+    <div class="hidden xl:flex flex-col gap-2 px-3 my-2">
+        <button id="sidebarProfileBtn" class="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface2 border border-line hover:border-brand-500/50 hover:bg-soft transition text-left group">
+            <img id="sidebarAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100" class="w-10 h-10 rounded-xl border border-brand-500 object-cover shrink-0 group-hover:scale-105 transition" alt="Avatar" />
+            <div class="min-w-0 flex-1">
+                <p id="sidebarName" class="text-xs font-bold truncate">Jasur</p>
+                <p id="sidebarUsername" class="text-[11px] text-muted truncate">@jasur</p>
+            </div>
+            <svg class="w-4 h-4 text-muted group-hover:text-brand-500 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <button id="sidebarTgAuthBtn" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 text-xs font-bold hover:bg-sky-500/20 transition">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .36z"/></svg>
+            <span id="sidebarTgAuthLabel">Вход через Telegram</span>
+        </button>
+    </div>
+
+    <div class="hidden md:flex mt-auto flex-col gap-3 p-3 xl:p-4">
+        <button class="theme-btn h-11 rounded-2xl bg-surface2 text-muted hover:text-brand-500 grid place-content-center xl:flex xl:items-center xl:gap-3 xl:px-4 transition" aria-label="Theme">
+            <svg class="w-5 h-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.35 15.35A9 9 0 118.65 3.65 7 7 0 0020.35 15.35z"/></svg>
+            <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="hidden xl:inline text-sm font-semibold" data-i18n="theme"></span>
+        </button>
+        <div class="lang-group flex md:flex-col xl:flex-row gap-1 p-1 rounded-2xl bg-surface2">
+            <button data-lang="uz" class="lang-btn flex-1 px-2 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"><span>🇺🇿</span>UZ</button>
+            <button data-lang="ru" class="lang-btn flex-1 px-2 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"><span>🇷🇺</span>RU</button>
+        </div>
+    </div>
+</aside>
+
+<!-- ============ MAIN ============ -->
+<main class="md:pl-20 xl:pl-64 pb-32 md:pb-12">
+    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-9">
+
+        <!-- mobile top bar -->
+        <div class="flex md:hidden items-center justify-between mb-5">
+            <div class="flex items-center gap-2.5">
+                <button id="mobileProfileBtn" class="active:scale-95 transition">
+                    <img id="mobileTopAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100" class="w-9 h-9 rounded-xl border border-brand-500 object-cover" alt="User" />
+                </button>
+                <span class="font-extrabold text-lg">TaskFlow</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="mobileTgAuthBtn" class="p-2 rounded-xl bg-sky-500/10 text-sky-500 border border-sky-500/20" title="Telegram Auth">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .36z"/></svg>
+                </button>
+                <button class="theme-btn w-10 h-10 rounded-xl bg-surface border border-line text-muted grid place-content-center" aria-label="Theme">
+                    <svg class="w-5 h-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.35 15.35A9 9 0 118.65 3.65 7 7 0 0020.35 15.35z"/></svg>
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                </button>
+                <div class="lang-group flex gap-1 p-1 rounded-xl bg-surface border border-line">
+                    <button data-lang="uz" class="lang-btn px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1"><span>🇺🇿</span>UZ</button>
+                    <button data-lang="ru" class="lang-btn px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1"><span>🇷🇺</span>RU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="flex flex-col lg:flex-row lg:items-center gap-5 justify-between anim-up">
+            <div class="flex items-center gap-4">
+                <button id="headerAvatarBtn" title="Профиль" class="relative group rounded-2xl focus:outline-none">
+                    <img id="userAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-brand-500 shadow-md object-cover shrink-0 group-hover:opacity-90 group-hover:scale-105 transition" alt="Avatar" />
+                    <span class="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">Инфо</span>
+                </button>
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <p class="text-sm font-semibold text-brand-500 capitalize" id="todayLabel"></p>
+                        <span id="tgStatusBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">TG Connected</span>
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight" id="greeting"></h1>
+                    <p class="text-muted mt-1" id="greetingSub"></p>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div class="relative">
+                    <svg class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+                    <input id="search" type="text" autocomplete="off" class="w-full sm:w-72 pl-12 pr-12 py-3 rounded-2xl bg-surface border border-line shadow-sm focus:outline-none focus:ring-4 focus:ring-brand-400/25 focus:border-brand-400 transition placeholder:text-muted" />
+                    <kbd class="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted bg-surface2 border border-line rounded-md px-1.5 py-0.5">/</kbd>
+                </div>
+                <button id="addBtn" class="hidden md:inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-brand-500 to-violet-600 text-white font-semibold shadow-lg shadow-brand-500/30 hover:shadow-xl hover:shadow-brand-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+                    <span data-i18n="newTask"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats cards -->
+        <section id="statsCards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8"></section>
+
+        <!-- Quick add -->
+        <form id="quickForm" class="mt-6 bg-surface border border-line rounded-3xl p-2 flex flex-wrap items-center gap-2 shadow-sm focus-within:ring-4 focus-within:ring-brand-400/20 focus-within:border-brand-400 transition anim-up" style="animation-delay:120ms">
+            <div class="w-10 h-10 rounded-2xl bg-soft text-brand-500 grid place-content-center shrink-0 ml-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <input id="qTitle" maxlength="120" autocomplete="off" class="flex-1 min-w-[160px] bg-transparent px-2 py-2.5 focus:outline-none placeholder:text-muted font-medium" />
+            <input id="qDate" type="date" class="bg-surface2 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none border border-transparent focus:border-brand-400" />
+            <select id="qPrio" class="bg-surface2 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none border border-transparent focus:border-brand-400"></select>
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 text-white text-sm font-bold shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition" data-i18n="add"></button>
+        </form>
+
+        <!-- Views -->
+        <section id="view" class="mt-7"></section>
+    </div>
+</main>
+
+<!-- Mobile FAB -->
+<button id="fab" class="md:hidden fixed z-40 right-5 bottom-24 w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-xl shadow-brand-500/40 grid place-content-center active:scale-95 transition" aria-label="Add">
+    <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- ============ ОКНО АВТОРИЗАЦИИ ТЕЛЕГРАМ ============ -->
+<div id="tgAuthModal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+    <div id="tgAuthBackdrop" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm anim-fade"></div>
+    <div class="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 sm:p-8 anim-pop text-center">
+        <button id="closeTgAuthModal" class="absolute top-5 right-5 w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-surface2 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-sky-500/10 text-sky-500 grid place-content-center mb-4">
+            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .36z"/></svg>
+        </div>
+        <h3 class="text-xl font-extrabold mb-1">Регистрация и Вход</h3>
+        <p class="text-sm text-muted mb-6">Бесшовная авторизация через Telegram без паролей</p>
+
+        <div class="bg-surface2 rounded-2xl p-4 mb-6 text-left text-xs space-y-2 text-muted font-medium">
+            <p>1. Нажмите кнопку «Открыть бота в Telegram» ниже.</p>
+            <p>2. В открывшемся окне Telegram нажмите кнопку <b>START</b>.</p>
+            <p>3. Сайт мгновенно авторизует ваш аккаунт.</p>
+        </div>
+
+        <a id="tgBotDirectLink" href="#" target="_blank" class="w-full py-3.5 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-sky-500 to-blue-600 shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 hover:shadow-xl hover:-translate-y-0.5 transition">
+            <span>Открыть бота в Telegram</span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </a>
+
+        <div class="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-muted">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+            <span id="tgWaitStatus">Ожидание нажатия START в боте...</span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ ОКНО ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ ============ -->
+<div id="profileModal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+    <div id="profileModalBackdrop" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm anim-fade"></div>
+    <div class="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 sm:p-7 anim-pop overflow-hidden">
+        <!-- Кнопка закрытия -->
+        <button id="closeProfileModal" class="absolute top-5 right-5 w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-surface2 transition" aria-label="Закрыть">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+
+        <!-- Верхний блок карточки: Аватар и статус -->
+        <div class="flex items-center gap-4 pb-5 border-b border-line">
+            <div class="relative">
+                <img id="modalProfileAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" class="w-16 h-16 rounded-2xl border-2 border-brand-500 object-cover shadow-lg" alt="Profile" />
+                <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-surface rounded-full" title="В сети"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 id="modalProfileName" class="text-lg font-extrabold truncate">Jasur</h3>
+                <p id="modalProfileUsername" class="text-xs text-muted font-medium truncate">@jasur</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-500/10 text-brand-500">PostgreSQL DB</span>
+                    <span id="modalTgChatBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">Chat ID: -</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Краткая сводка продуктивности -->
+        <div class="grid grid-cols-3 gap-2 my-5 text-center">
+            <div class="p-3 bg-surface2 rounded-2xl">
+                <div id="profStatTotal" class="text-lg font-extrabold text-brand-500 tabular-nums">0</div>
+                <div class="text-[10px] text-muted font-semibold mt-0.5" data-i18n="total">Всего задач</div>
+            </div>
+            <div class="p-3 bg-surface2 rounded-2xl">
+                <div id="profStatDone" class="text-lg font-extrabold text-emerald-500 tabular-nums">0</div>
+                <div class="text-[10px] text-muted font-semibold mt-0.5" data-i18n="done">Выполнено</div>
+            </div>
+            <div class="p-3 bg-surface2 rounded-2xl">
+                <div id="profStatRate" class="text-lg font-extrabold text-violet-500 tabular-nums">0%</div>
+                <div class="text-[10px] text-muted font-semibold mt-0.5" data-i18n="progress">Прогресс</div>
+            </div>
+        </div>
+
+        <!-- Форма изменения данных -->
+        <form id="profileForm" class="space-y-3.5">
+            <div>
+                <label class="block text-xs font-bold text-muted mb-1" data-i18n="profName">Отображаемое имя</label>
+                <input id="inputProfName" type="text" required class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-muted mb-1" data-i18n="profUsername">Имя пользователя (Никнейм)</label>
+                <input id="inputProfUsername" type="text" required class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-muted mb-1" data-i18n="profAvatar">Ссылка на фото (URL аватара)</label>
+                <input id="inputProfAvatar" type="url" class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+
+            <div class="pt-2 flex gap-2">
+                <button type="button" id="cancelProfileBtn" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-surface2 hover:brightness-95 transition" data-i18n="cancel">Отмена</button>
+                <button type="submit" id="saveProfileBtn" class="flex-1 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-brand-500 to-violet-600 shadow-md shadow-brand-500/25 hover:shadow-lg transition" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ TASK MODAL ============ -->
+<div id="modal" class="hidden fixed inset-0 z-50 items-end sm:items-center justify-center p-0 sm:p-4">
+    <div id="modalBackdrop" class="absolute inset-0 bg-slate-950/50 backdrop-blur-sm anim-fade"></div>
+    <form id="taskForm" class="relative w-full max-w-lg bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 anim-pop max-h-[95vh] overflow-y-auto" novalidate>
+        <div class="flex items-start justify-between mb-6">
+            <div>
+                <h2 class="text-xl font-extrabold" id="modalTitle"></h2>
+                <p class="text-sm text-muted mt-0.5" data-i18n="modalSub"></p>
+            </div>
+            <button type="button" id="closeModal" class="w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-surface2 transition" aria-label="Close">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+
+        <label class="block mb-4">
+            <span class="text-sm font-semibold" data-i18n="fTitle"></span>
+            <input id="fTitle" maxlength="120" class="mt-1.5 w-full px-4 py-3 rounded-2xl bg-surface2 border border-line focus:outline-none focus:ring-4 focus:ring-brand-400/25 focus:border-brand-400 transition" />
+            <span id="fTitleErr" class="hidden text-xs text-rose-500 mt-1 font-medium" data-i18n="errTitle"></span>
+        </label>
+
+        <label class="block mb-4">
+            <span class="text-sm font-semibold" data-i18n="fDesc"></span>
+            <textarea id="fDesc" rows="3" class="mt-1.5 w-full px-4 py-3 rounded-2xl bg-surface2 border border-line focus:outline-none focus:ring-4 focus:ring-brand-400/25 focus:border-brand-400 transition resize-none"></textarea>
+        </label>
+
+        <div class="mb-4">
+            <span class="text-sm font-semibold" data-i18n="fDeadline"></span>
+            <div class="flex flex-wrap gap-2 mt-1.5 mb-2" id="presets"></div>
+            <input id="fDeadline" type="datetime-local" class="w-full px-4 py-3 rounded-2xl bg-surface2 border border-line focus:outline-none focus:ring-4 focus:ring-brand-400/25 focus:border-brand-400 transition" />
+            <span id="fDeadlineErr" class="hidden text-xs text-rose-500 mt-1 font-medium" data-i18n="errDeadline"></span>
+        </div>
+
+        <div class="mb-7">
+            <span class="text-sm font-semibold" data-i18n="fPriority"></span>
+            <div id="prioPicker" class="grid grid-cols-3 gap-2 mt-1.5"></div>
+        </div>
+
+        <div class="flex gap-3">
+            <button type="button" id="cancelModal" class="flex-1 py-3 rounded-2xl font-semibold bg-surface2 hover:brightness-95 transition" data-i18n="cancel"></button>
+            <button type="submit" id="submitBtn" class="flex-1 py-3 rounded-2xl font-semibold text-white bg-gradient-to-r from-brand-500 to-violet-600 shadow-lg shadow-brand-500/30 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:hover:translate-y-0" data-i18n="save"></button>
+        </div>
+        <p class="hidden sm:block text-center text-[11px] text-muted mt-4">Ctrl + Enter</p>
+    </form>
+</div>
+
+<!-- ============ CONFIRM ============ -->
+<div id="confirm" class="hidden fixed inset-0 z-[65] items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-950/50 backdrop-blur-sm anim-fade" id="confirmBackdrop"></div>
+    <div class="relative w-full max-w-sm bg-surface rounded-3xl p-6 shadow-2xl anim-pop text-center">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-rose-500/10 text-rose-500 grid place-content-center mb-4">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/></svg>
+        </div>
+        <p id="confirmText" class="font-semibold mb-6"></p>
+        <div class="flex gap-3">
+            <button id="confirmNo" class="flex-1 py-2.5 rounded-2xl font-semibold bg-surface2" data-i18n="cancel"></button>
+            <button id="confirmYes" class="flex-1 py-2.5 rounded-2xl font-semibold text-white bg-gradient-to-r from-rose-500 to-pink-600 shadow-lg shadow-rose-500/30" data-i18n="confirmBtn"></button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ SPECIAL MODE: AUDIO & BADGE ============ -->
+<audio id="specialAudio" src="/special.mp3" preload="auto" loop></audio>
+
+<div id="iymanaBadge" class="hidden fixed bottom-6 right-6 z-50 items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 border border-pink-500/40 backdrop-blur-md shadow-2xl shadow-pink-500/30 anim-pop">
+    <span class="w-3 h-3 rounded-full bg-pink-500 animate-ping"></span>
+    <span class="text-xs sm:text-sm font-extrabold tracking-wide text-pink-400 font-mono drop-shadow-[0_0_12px_rgba(244,114,182,0.8)]">
+        ✨ Special for Iymana
+    </span>
+    <button id="audioControlBtn" class="ml-2 w-7 h-7 rounded-xl bg-pink-500/20 hover:bg-pink-500/40 text-pink-300 grid place-content-center text-xs transition">
+        🔊
+    </button>
+</div>
+
+<!-- TOASTS -->
+<div id="toasts" class="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[70] flex flex-col gap-2 items-center w-[calc(100%-2rem)] max-w-md pointer-events-none"></div>
+
+<script>
+    (() => {
+        'use strict';
+
+        /* ================= CONFIG ================= */
+        const BASE_URL = window.location.origin;
+        const API = `${BASE_URL}/api/todos`;
+        const PROFILE_API = `${BASE_URL}/api/profile/current`;
+        const AUTH_API = `${BASE_URL}/api/auth`;
+        const MODE_API = `${BASE_URL}/api/app/mode`;
+        const USER_NAME = { uz: 'Jasur', ru: 'Жасур' };
+        const ENABLE_EDIT = true;
+        const UNDO_MS = 5000;
+
+        /* ================= ДАННЫЕ ПРОГРАММ ВОРКАУТА С ТАБЛИЦ ================= */
+        const WORKOUT_DATA = {
+            pullups: {
+                title: 'Схема подтягиваний на турнике',
+                subtitle: 'Программа по увеличению числа подтягиваний за 30 недель',
+                badge: 'Турник · 30 Недель',
+                weeks: [
+                    { w: 1,  sets: [6, 5, 5, 4, 3], total: 23 },
+                    { w: 2,  sets: [7, 6, 5, 4, 4], total: 26 },
+                    { w: 3,  sets: [8, 6, 5, 5, 4], total: 28 },
+                    { w: 4,  sets: [8, 7, 5, 5, 5], total: 30 },
+                    { w: 5,  sets: [9, 7, 6, 5, 5], total: 32 },
+                    { w: 6,  sets: [10, 7, 6, 6, 5], total: 34 },
+                    { w: 7,  sets: [10, 8, 6, 6, 6], total: 36 },
+                    { w: 8,  sets: [11, 8, 7, 6, 6], total: 38 },
+                    { w: 9,  sets: [12, 8, 7, 7, 6], total: 40 },
+                    { w: 10, sets: [12, 9, 7, 7, 7], total: 42 },
+                    { w: 11, sets: [13, 9, 8, 7, 7], total: 44 },
+                    { w: 12, sets: [14, 9, 8, 8, 7], total: 46 },
+                    { w: 13, sets: [14, 10, 8, 8, 8], total: 48 },
+                    { w: 14, sets: [15, 10, 9, 8, 8], total: 50 },
+                    { w: 15, sets: [16, 10, 9, 9, 8], total: 52 },
+                    { w: 16, sets: [16, 11, 9, 9, 9], total: 54 },
+                    { w: 17, sets: [17, 11, 10, 9, 9], total: 56 },
+                    { w: 18, sets: [18, 11, 10, 10, 9], total: 58 },
+                    { w: 19, sets: [19, 12, 10, 10, 9], total: 60 },
+                    { w: 20, sets: [20, 12, 11, 10, 9], total: 62 },
+                    { w: 21, sets: [21, 12, 11, 11, 9], total: 64 },
+                    { w: 22, sets: [22, 13, 11, 11, 9], total: 66 },
+                    { w: 23, sets: [22, 13, 12, 11, 10], total: 68 },
+                    { w: 24, sets: [23, 13, 12, 11, 11], total: 70 },
+                    { w: 25, sets: [23, 14, 12, 12, 11], total: 72 },
+                    { w: 26, sets: [24, 14, 13, 12, 11], total: 74 },
+                    { w: 27, sets: [24, 14, 13, 13, 12], total: 76 },
+                    { w: 28, sets: [25, 15, 13, 13, 12], total: 78 },
+                    { w: 29, sets: [25, 15, 14, 13, 13], total: 80 },
+                    { w: 30, sets: [26, 15, 14, 14, 13], total: 82 }
+                ]
+            },
+            pushups: {
+                title: 'Схема отжиманий от пола',
+                subtitle: 'Программа по увеличению отжиманий за 15 недель',
+                badge: 'От пола · 15 Недель',
+                weeks: [
+                    { w: 1,  sets: [20, 20, 15, 15, 10], total: 80 },
+                    { w: 2,  sets: [25, 25, 20, 15, 10], total: 95 },
+                    { w: 3,  sets: [30, 30, 25, 20, 15], total: 120 },
+                    { w: 4,  sets: [35, 30, 25, 20, 15], total: 125 },
+                    { w: 5,  sets: [40, 35, 25, 25, 20], total: 145 },
+                    { w: 6,  sets: [40, 40, 30, 25, 20], total: 155 },
+                    { w: 7,  sets: [45, 40, 35, 30, 25], total: 175 },
+                    { w: 8,  sets: [45, 45, 35, 35, 25], total: 185 },
+                    { w: 9,  sets: [50, 45, 35, 35, 30], total: 195 },
+                    { w: 10, sets: [50, 50, 40, 40, 35], total: 215 },
+                    { w: 11, sets: [55, 50, 40, 40, 35], total: 220 },
+                    { w: 12, sets: [60, 55, 40, 40, 35], total: 230 },
+                    { w: 13, sets: [60, 60, 45, 45, 40], total: 250 },
+                    { w: 14, sets: [65, 60, 45, 45, 40], total: 255 },
+                    { w: 15, sets: [65, 65, 45, 45, 40], total: 260 }
+                ]
+            },
+            dips: {
+                title: 'Схема отжиманий на брусьях',
+                subtitle: 'Программа по увеличению отжиманий за 17 недель',
+                badge: 'Брусья · 17 Недель',
+                weeks: [
+                    { w: 1,  sets: [10, 5, 5, 3, 2], total: 25 },
+                    { w: 2,  sets: [15, 15, 10, 5, 5], total: 50 },
+                    { w: 3,  sets: [20, 20, 15, 15, 10], total: 80 },
+                    { w: 4,  sets: [25, 25, 20, 15, 10], total: 95 },
+                    { w: 5,  sets: [30, 30, 25, 20, 15], total: 120 },
+                    { w: 6,  sets: [35, 30, 25, 20, 15], total: 125 },
+                    { w: 7,  sets: [40, 35, 25, 25, 20], total: 145 },
+                    { w: 8,  sets: [40, 40, 30, 25, 20], total: 155 },
+                    { w: 9,  sets: [45, 40, 35, 30, 25], total: 175 },
+                    { w: 10, sets: [45, 45, 35, 35, 25], total: 185 },
+                    { w: 11, sets: [50, 45, 35, 35, 30], total: 195 },
+                    { w: 12, sets: [50, 50, 40, 40, 35], total: 215 },
+                    { w: 13, sets: [55, 50, 40, 40, 35], total: 220 },
+                    { w: 14, sets: [60, 55, 40, 40, 35], total: 230 },
+                    { w: 15, sets: [60, 60, 45, 45, 40], total: 250 },
+                    { w: 16, sets: [65, 60, 45, 45, 40], total: 255 },
+                    { w: 17, sets: [65, 65, 45, 45, 40], total: 260 }
+                ]
+            }
+        };
+
+        /* ================= I18N ================= */
+        const I18N = {
+            uz: {
+                navTasks: 'Vazifalar', navToday: 'Bugun', navOverdue: "Muddati o'tgan", navStats: 'Statistika', navWorkout: 'Mashqlar', theme: 'Mavzu',
+                greeting: n => `Salom, ${n}!`, greetingSub: 'Bugun qanday rejalaringiz bor?',
+                search: 'Vazifalarni qidirish...', newTask: 'Yangi vazifa',
+                total: 'Jami vazifalar', inProgress: 'Jarayonda', done: 'Bajarildi', progress: 'Bajarilish',
+                tabAll: 'Barchasi', tabActive: 'Jarayonda', tabDone: 'Bajarildi',
+                LOW: 'Past', MEDIUM: "O'rta", HIGH: 'Yuqori',
+                allPrio: 'Barcha darajalar', sortDeadline: "Muddat bo'yicha", sortPriority: "Muhimlik bo'yicha", sortNewest: 'Yangilari avval', sortTitle: "Nomi bo'yicha",
+                quick: "Yangi vazifa yozing va Enter bosing...", add: "Qo'shish",
+                modalNew: 'Yangi vazifa', modalEdit: 'Vazifani tahrirlash', modalSub: "Vazifa tafsilotlarini to'ldiring",
+                fTitle: 'Sarlavha', fDesc: 'Tavsif', fDeadline: 'Muddat', fPriority: 'Muhimlik darajasi',
+                errTitle: 'Sarlavhani kiriting', errDeadline: 'Muddatni tanlang',
+                pToday: 'Bugun', pTomorrow: 'Ertaga', pWeek: '1 hafta',
+                cancel: 'Bekor qilish', save: 'Saqlash', confirmBtn: 'Tasdiqlash',
+                emptyTitle: 'Vazifalar topilmadi', emptySub: "Qidiruv yoki filtrni o'zgartirib ko'ring",
+                firstTitle: "Hali vazifalar yo'q", firstSub: "Birinchi vazifangizni yarating — hammasi shundan boshlanadi", firstBtn: 'Birinchi vazifani yaratish',
+                errLoad: "Serverga ulanib bo'lmadi", errLoadSub: 'Spring Boot (localhost:8080) ishlayotganini tekshiring', retry: 'Qayta urinish',
+                offline: "Aloqa yo'q — saqlangan ma'lumotlar ko'rsatilmoqda",
+                created: "Vazifa qo'shildi", updated: 'Vazifa yangilandi', deleted: "Vazifa o'chirildi", undo: 'Bekor qilish',
+                updFail: "Statusni yangilab bo'lmadi", delFail: "O'chirib bo'lmadi", createFail: "Vazifani yaratib bo'lmadi", editFail: "Saqlab bo'lmadi (PUT /api/todos/{id} kerak)",
+                overdue: "Muddati o'tgan", noDeadline: 'Muddatsiz', edit: 'Tahrirlash', del: "O'chirish",
+                clearDone: n => `Bajarilganlarni tozalash (${n})`, clearConfirm: n => `${n} ta bajarilgan vazifa o'chirilsinmi?`, cleared: n => `${n} ta vazifa o'chirildi`,
+                gOverdue: "Muddati o'tgan", gToday: 'Bugun', gTomorrow: 'Ertaga', gWeek: 'Shu hafta', gLater: 'Keyinroq', gNone: 'Muddatsiz', gDone: 'Bajarilgan',
+                statsTitle: 'Batafsil statistika', byPriority: "Muhimlik bo'yicha", overdueCount: "Muddati o'tgan vazifalar", completionRate: 'Bajarilish darajasi',
+                next7: 'Keyingi 7 kun', urgent: 'Eng shoshilinch', nothingUrgent: "Shoshilinch vazifalar yo'q", ofTasks: 'vazifa',
+                now: 'hozir', inX: (n, u) => `${n} ${u}dan keyin`, agoX: (n, u) => `${n} ${u} oldin`, uMin: 'daq', uHour: 'soat', uDay: 'kun',
+                profName: "Ko'rsatiladigan ism", profUsername: 'Foydalanuvchi nomi', profAvatar: 'Avatar rasmi havolasi (URL)', profSaved: "Profil ma'lumotlari saqlandi",
+                locale: 'uz-UZ',
+            },
+            ru: {
+                navTasks: 'Задачи', navToday: 'Сегодня', navOverdue: 'Просроченные', navStats: 'Статистика', navWorkout: 'Воркаут', theme: 'Тема',
+                greeting: n => `Привет, ${n}!`, greetingSub: 'Какие планы на сегодня?',
+                search: 'Поиск задач...', newTask: 'Новая задача',
+                total: 'Всего задач', inProgress: 'В процессе', done: 'Выполнено', progress: 'Прогресс',
+                tabAll: 'Все', tabActive: 'В процессе', tabDone: 'Выполнено',
+                LOW: 'Низкий', MEDIUM: 'Средний', HIGH: 'Высокий',
+                allPrio: 'Все приоритеты', sortDeadline: 'По дедлайну', sortPriority: 'По приоритету', sortNewest: 'Сначала новые', sortTitle: 'По названию',
+                quick: 'Введите задачу и нажмите Enter...', add: 'Добавить',
+                modalNew: 'Новая задача', modalEdit: 'Редактирование задачи', modalSub: 'Заполните детали задачи',
+                fTitle: 'Название', fDesc: 'Описание', fDeadline: 'Дедлайн', fPriority: 'Приоритет',
+                errTitle: 'Введите название', errDeadline: 'Выберите дедлайн',
+                pToday: 'Сегодня', pTomorrow: 'Завтра', pWeek: 'Через неделю',
+                cancel: 'Отмена', save: 'Сохранить', confirmBtn: 'Подтвердить',
+                emptyTitle: 'Задачи не найдены', emptySub: 'Попробуйте изменить поиск или фильтры',
+                firstTitle: 'Задач пока нет', firstSub: 'Создайте первую задачу — с неё всё начинается', firstBtn: 'Создать первую задачу',
+                errLoad: 'Не удалось подключиться к серверу', errLoadSub: 'Проверьте, что Spring Boot (localhost:8080) запущен', retry: 'Повторить',
+                offline: 'Нет связи с сервером — показаны сохранённые данные',
+                created: 'Задача добавлена', updated: 'Задача обновлена', deleted: 'Задача удалена', undo: 'Отменить',
+                updFail: 'Не удалось обновить статус', delFail: 'Не удалось удалить', createFail: 'Не удалось создать задачу', editFail: 'Не удалось сохранить (нужен PUT /api/todos/{id})',
+                overdue: 'Просрочено', noDeadline: 'Без дедлайна', edit: 'Редактировать', del: 'Удалить',
+                clearDone: n => `Очистить выполненные (${n})`, clearConfirm: n => `Удалить выполненные задачи (${n})?`, cleared: n => `Удалено задач: ${n}`,
+                gOverdue: 'Просрочено', gToday: 'Сегодня', gTomorrow: 'Завтра', gWeek: 'На этой неделе', gLater: 'Позже', gNone: 'Без дедлайна', gDone: 'Выполнено',
+                statsTitle: 'Подробная статистика', byPriority: 'По приоритету', overdueCount: 'Просроченные задачи', completionRate: 'Уровень выполнения',
+                next7: 'Ближайшие 7 дней', urgent: 'Самые срочные', nothingUrgent: 'Срочных задач нет', ofTasks: 'задач',
+                now: 'сейчас', inX: (n, u) => `через ${n} ${u}`, agoX: (n, u) => `${n} ${u} назад`, uMin: 'мин', uHour: 'ч', uDay: 'д',
+                profName: 'Отображаемое имя', profUsername: 'Имя пользователя (Никнейм)', profAvatar: 'Ссылка на аватар (URL)', profSaved: 'Данные профиля обновлены',
+                locale: 'ru-RU',
+            }
+        };
+
+        const W = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+        const PRIO = {
+            LOW:    { badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25', dot: 'bg-emerald-500', bar: 'from-emerald-400 to-emerald-500', pick: 'peer-checked:bg-emerald-500/10 peer-checked:text-emerald-600 dark:peer-checked:text-emerald-400 peer-checked:ring-emerald-500/40' },
+            MEDIUM: { badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/25',         dot: 'bg-amber-500',   bar: 'from-amber-400 to-amber-500',     pick: 'peer-checked:bg-amber-500/10 peer-checked:text-amber-600 dark:peer-checked:text-amber-400 peer-checked:ring-amber-500/40' },
+            HIGH:   { badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-rose-500/25',             dot: 'bg-rose-500',    bar: 'from-rose-400 to-rose-500',       pick: 'peer-checked:bg-rose-500/10 peer-checked:text-rose-600 dark:peer-checked:text-rose-400 peer-checked:ring-rose-500/40' },
+        };
+
+        /* ================= STATE ================= */
+        const store = {
+            get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+        };
+        const cached = (() => { try { return JSON.parse(store.get('tf-cache', '[]')); } catch { return []; } })();
+
+        const state = {
+            todos: Array.isArray(cached) ? cached : [],
+            user: { name: 'Jasur', username: 'jasur', avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', telegramChatId: null },
+            view: 'tasks',
+            scope: 'all',
+            tab: 'all',
+            prioFilter: 'all',
+            sort: store.get('tf-sort', 'deadline'),
+            search: '',
+            lang: store.get('tf-lang', 'ru') === 'uz' ? 'uz' : 'ru',
+            loading: true, error: false, offline: false,
+            editingId: null, formPrio: 'MEDIUM',
+            pending: new Set(),
+            workoutType: 'pullups',
+            workoutWeek: 1,
+            completedSets: [false, false, false, false, false],
+            restTimerSec: 90,
+            timerInterval: null
+        };
+        const seen = new Set();
+        const pendingTimers = new Map();
+        const lastCounts = {};
+        let lastBar = 0;
+        let authPollInterval = null;
+
+        const $ = (s, r = document) => r.querySelector(s);
+        const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+        const t = k => I18N[state.lang][k] || k;
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /* ================= HELPERS ================= */
+        const readDone = o => Boolean(o.isCompleted ?? o.completed ?? o.done ?? false);
+        const normalize = o => ({ ...o, isCompleted: readDone(o) });
+        const prioOf = x => (PRIO[String(x.priority).toUpperCase()] ? String(x.priority).toUpperCase() : 'MEDIUM');
+        const visible = () => state.todos.filter(x => !state.pending.has(x.id));
+        const sameId = (a, b) => String(a) === String(b);
+
+        const startOfDay = d => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
+        const dayDiff = d => Math.round((startOfDay(d) - startOfDay(new Date())) / 864e5);
+        const dl = x => (x.deadline ? new Date(x.deadline) : null);
+        const isOverdue = x => { const d = dl(x); return !x.isCompleted && d && !isNaN(d) && d < new Date(); };
+
+        function groupKey(x) {
+            if (x.isCompleted) return 'done';
+            const d = dl(x);
+            if (!d || isNaN(d)) return 'none';
+            if (d < new Date()) return 'overdue';
+            const n = dayDiff(d);
+            if (n === 0) return 'today';
+            if (n === 1) return 'tomorrow';
+            if (n <= 7) return 'week';
+            return 'later';
+        }
+
+        function fmtDate(iso) {
+            const d = new Date(iso);
+            if (!iso || isNaN(d)) return t('noDeadline');
+            try { return d.toLocaleString(t('locale'), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+            catch { return d.toLocaleString(); }
+        }
+        function rel(iso) {
+            const d = new Date(iso); if (!iso || isNaN(d)) return '';
+            const ms = d - new Date(), a = Math.abs(ms);
+            let n, u;
+            if (a < 60e3) return t('now');
+            if (a < 3600e3) { n = Math.round(a / 60e3); u = t('uMin'); }
+            else if (a < 864e5) { n = Math.round(a / 3600e3); u = t('uHour'); }
+            else { n = Math.round(a / 864e5); u = t('uDay'); }
+            return ms > 0 ? t('inX')(n, u) : t('agoX')(n, u);
+        }
+        const pad = n => String(n).padStart(2, '0');
+        function toLocalInput(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+        function inputFromServer(s) {
+            if (!s) return '';
+            if (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(s)) return s.slice(0, 16);
+            const d = new Date(s); return isNaN(d) ? '' : toLocalInput(d);
+        }
+        function presetDate(days) {
+            const d = new Date(); d.setDate(d.getDate() + days); d.setHours(18, 0, 0, 0);
+            if (days === 0 && d < new Date()) { const n = new Date(); n.setHours(n.getHours() + 1, 0, 0, 0); return n; }
+            return d;
+        }
+
+        function stats() {
+            const list = visible();
+            const total = list.length, done = list.filter(x => x.isCompleted).length, active = total - done;
+            return {
+                total, done, active,
+                pct: total ? Math.round((done / total) * 100) : 0,
+                overdue: list.filter(isOverdue).length,
+                today: list.filter(x => !x.isCompleted && dl(x) && dayDiff(dl(x)) === 0).length
+            };
+        }
+
+        /* ================= TOASTS ================= */
+        function toast(msg, opts = {}) {
+            const { type = 'ok', action = null, duration = 2800 } = opts;
+            const el = document.createElement('div');
+            const c = type === 'ok' ? 'from-brand-600 to-violet-600' : 'from-rose-500 to-pink-600';
+            el.className = `anim-toast pointer-events-auto w-full px-4 py-3 rounded-2xl text-white text-sm font-semibold shadow-2xl bg-gradient-to-r ${c} flex items-center gap-3`;
+            el.innerHTML = `<span class="w-6 h-6 rounded-full bg-white/20 grid place-content-center text-xs shrink-0">${type === 'ok' ? '✓' : '!'}</span><span class="flex-1">${esc(msg)}</span>`;
+            const close = () => { el.style.transition = 'all .25s'; el.style.opacity = '0'; el.style.transform = 'translateY(10px)'; setTimeout(() => el.remove(), 250); };
+            if (action) {
+                const b = document.createElement('button');
+                b.className = 'px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 font-bold transition';
+                b.textContent = action.label;
+                b.onclick = () => { action.fn(); close(); };
+                el.appendChild(b);
+            }
+            $('#toasts').appendChild(el);
+            setTimeout(close, duration);
+        }
+
+        function askConfirm(text) {
+            return new Promise(res => {
+                $('#confirmText').textContent = text;
+                const box = $('#confirm'); box.classList.remove('hidden'); box.classList.add('flex');
+                const done = v => { box.classList.add('hidden'); box.classList.remove('flex'); ['#confirmYes', '#confirmNo', '#confirmBackdrop'].forEach(s => $(s).onclick = null); res(v); };
+                $('#confirmYes').onclick = () => done(true);
+                $('#confirmNo').onclick = () => done(false);
+                $('#confirmBackdrop').onclick = () => done(false);
+            });
+        }
+
+        function confetti() {
+            if (reduceMotion()) return;
+            const colors = ['#6366f1', '#8b5cf6', '#a78bfa', '#22c55e', '#f59e0b', '#ec4899', '#38bdf8'];
+            const box = document.createElement('div');
+            box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden';
+            document.body.appendChild(box);
+            for (let i = 0; i < 70; i++) {
+                const p = document.createElement('i');
+                const s = 6 + Math.random() * 8;
+                p.style.cssText = `position:absolute;left:50%;top:60%;width:${s}px;height:${s * 0.6}px;background:${colors[i % colors.length]};border-radius:2px`;
+                box.appendChild(p);
+                const x = (Math.random() - 0.5) * innerWidth * 0.9, y = -(200 + Math.random() * 420);
+                p.animate([
+                    { transform: 'translate(0,0) rotate(0)', opacity: 1 },
+                    { transform: `translate(${x * 0.6}px,${y}px) rotate(${Math.random() * 360}deg)`, opacity: 1, offset: 0.45 },
+                    { transform: `translate(${x}px,${innerHeight * 0.5}px) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+                ], { duration: 1400 + Math.random() * 900, easing: 'cubic-bezier(.2,.7,.3,1)' });
+            }
+            setTimeout(() => box.remove(), 2400);
+        }
+
+        /* ================= API ================= */
+        async function api(path = '', opts = {}) {
+            const res = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const txt = await res.text();
+            return txt ? JSON.parse(txt) : null;
+        }
+        const persist = () => store.set('tf-cache', JSON.stringify(state.todos));
+
+        function syncUserUI() {
+            const u = state.user;
+            USER_NAME.uz = u.name;
+            USER_NAME.ru = u.name;
+            ['userAvatar', 'sidebarAvatar', 'mobileTopAvatar', 'modalProfileAvatar'].forEach(id => {
+                const img = document.getElementById(id);
+                if (img && u.avatarUrl) img.src = u.avatarUrl;
+            });
+            const sName = document.getElementById('sidebarName');
+            if (sName) sName.textContent = u.name;
+            const sUser = document.getElementById('sidebarUsername');
+            if (sUser) sUser.textContent = '@' + (u.username || 'user');
+
+            const mName = document.getElementById('modalProfileName');
+            if (mName) mName.textContent = u.name;
+            const mUser = document.getElementById('modalProfileUsername');
+            if (mUser) mUser.textContent = '@' + (u.username || 'user');
+
+            const tgBadge = $('#tgStatusBadge');
+            const sideTgLabel = $('#sidebarTgAuthLabel');
+            const chatBadge = $('#modalTgChatBadge');
+            if (u.telegramChatId) {
+                if (tgBadge) tgBadge.classList.remove('hidden');
+                if (sideTgLabel) sideTgLabel.textContent = 'TG: ' + u.name;
+                if (chatBadge) {
+                    chatBadge.textContent = 'ID: ' + u.telegramChatId;
+                    chatBadge.classList.remove('hidden');
+                }
+            } else {
+                if (tgBadge) tgBadge.classList.add('hidden');
+                if (sideTgLabel) sideTgLabel.textContent = 'Вход через Telegram';
+                if (chatBadge) chatBadge.classList.add('hidden');
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                const savedTgUser = store.get('tf-auth-user', null);
+                if (savedTgUser) {
+                    state.user = JSON.parse(savedTgUser);
+                    syncUserUI();
+                    renderStatic();
+                    return;
+                }
+
+                const res = await fetch(PROFILE_API);
+                if (res.ok) {
+                    const u = await res.json();
+                    state.user = { ...state.user, ...u };
+                    syncUserUI();
+                    renderStatic();
+                }
+            } catch (e) {
+                console.warn('Profile endpoint not reached, using defaults:', e);
+            }
+        }
+
+        async function saveProfileData(name, username, avatarUrl) {
+            try {
+                const res = await fetch(PROFILE_API, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username, avatarUrl })
+                });
+                if (res.ok) {
+                    const updated = await res.json();
+                    state.user = { ...state.user, ...updated };
+                } else {
+                    state.user = { ...state.user, name, username, avatarUrl };
+                }
+            } catch {
+                state.user = { ...state.user, name, username, avatarUrl };
+            }
+            store.set('tf-auth-user', JSON.stringify(state.user));
+            syncUserUI();
+            renderStatic();
+            toast(t('profSaved'));
+        }
+
+        /* ================= TELEGRAM АВТОРИЗАЦИЯ ================= */
+        async function openTelegramAuthModal() {
+            try {
+                const res = await fetch(AUTH_API + '/init', { method: 'POST' });
+                if (!res.ok) throw new Error('Auth init failed');
+                const data = await res.json();
+
+                $('#tgBotDirectLink').href = data.botUrl;
+                $('#tgWaitStatus').textContent = 'Ожидание нажатия START в боте...';
+
+                const m = $('#tgAuthModal');
+                m.classList.remove('hidden');
+                m.classList.add('flex');
+
+                if (authPollInterval) clearInterval(authPollInterval);
+                authPollInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch(`${AUTH_API}/status?token=${encodeURIComponent(data.token)}`);
+                        if (!statusRes.ok) return;
+                        const sData = await statusRes.json();
+
+                        if (sData.status === 'CONFIRMED') {
+                            clearInterval(authPollInterval);
+                            state.user = {
+                                id: sData.userId,
+                                name: sData.name || 'Атлет',
+                                username: sData.username || 'tg_user',
+                                avatarUrl: state.user.avatarUrl,
+                                telegramChatId: sData.chatId
+                            };
+                            store.set('tf-auth-user', JSON.stringify(state.user));
+                            closeTelegramAuthModal();
+                            syncUserUI();
+                            renderStatic();
+                            toast(`Успешный вход! С возвращением, ${state.user.name}`);
+                            loadTodos({ silent: true });
+                        } else if (sData.status === 'EXPIRED') {
+                            clearInterval(authPollInterval);
+                            $('#tgWaitStatus').textContent = 'Время ссылки истекло. Откройте окно заново.';
+                        }
+                    } catch (e) {
+                        console.error('Polling error:', e);
+                    }
+                }, 1500);
+
+            } catch (err) {
+                console.error(err);
+                toast('Не удалось соединиться с сервером авторизации', { type: 'err' });
+            }
+        }
+
+        function closeTelegramAuthModal() {
+            if (authPollInterval) clearInterval(authPollInterval);
+            const m = $('#tgAuthModal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        /* ================= ЗАДАЧИ: LOAD / CRUD ================= */
+        async function loadTodos({ silent = false } = {}) {
+            if (!silent) { state.loading = state.todos.length === 0; state.error = false; render(); }
+            try {
+                const data = await api();
+                const arr = Array.isArray(data) ? data : (data?.content ?? []);
+                state.todos = arr.map(normalize);
+                state.error = false; state.offline = false; persist();
+            } catch (e) {
+                console.error(e);
+                if (!silent) { if (state.todos.length) state.offline = true; else state.error = true; }
+            }
+            state.loading = false; render();
+        }
+
+        async function createTodo(payload) {
+            const created = await api('', { method: 'POST', body: JSON.stringify(payload) });
+            if (created && created.id != null) state.todos.unshift(normalize(created));
+            else { await loadTodos({ silent: true }); }
+            persist();
+        }
+
+        async function updateTodo(id, payload) {
+            const todo = state.todos.find(x => sameId(x.id, id));
+            const body = { ...payload, isCompleted: todo ? todo.isCompleted : false };
+            const upd = await api(`/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+            if (todo) {
+                const { isCompleted, completed, done, ...rest } = upd || {};
+                Object.assign(todo, payload, rest);
+            }
+            persist();
+        }
+
+        async function toggleTodo(id, value) {
+            const todo = state.todos.find(x => sameId(x.id, id));
+            if (!todo) return;
+            const prev = todo.isCompleted;
+            todo.isCompleted = value;
+            renderStatsCards(); renderNav();
+            setTimeout(() => { renderList(); }, reduceMotion() ? 0 : 260);
+            try {
+                const upd = await api(`/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isCompleted: value }) });
+                if (upd && typeof upd === 'object') { const { isCompleted, completed, done, ...rest } = upd; Object.assign(todo, rest); }
+                persist();
+                if (value) { const s = stats(); if (s.total > 0 && s.done === s.total) confetti(); }
+            } catch (e) {
+                todo.isCompleted = prev; render(); toast(t('updFail'), { type: 'err' });
+            }
+        }
+
+        function requestDelete(id) {
+            const card = $(`[data-card="${CSS.escape(String(id))}"]`);
+            if (card) { card.style.maxHeight = card.offsetHeight + 'px'; requestAnimationFrame(() => card.classList.add('removing')); }
+            setTimeout(() => {
+                state.pending.add(id); render();
+                pendingTimers.set(id, setTimeout(() => commitDelete(id), UNDO_MS));
+                toast(t('deleted'), { action: { label: t('undo'), fn: () => undoDelete(id) }, duration: UNDO_MS });
+            }, card ? 280 : 0);
+        }
+        function undoDelete(id) {
+            clearTimeout(pendingTimers.get(id)); pendingTimers.delete(id);
+            state.pending.delete(id); render();
+        }
+        async function commitDelete(id) {
+            pendingTimers.delete(id);
+            try {
+                await api(`/${id}`, { method: 'DELETE' });
+                state.todos = state.todos.filter(x => !sameId(x.id, id)); persist();
+            } catch (e) { toast(t('delFail'), { type: 'err' }); }
+            state.pending.delete(id); render();
+        }
+        window.addEventListener('beforeunload', () => {
+            pendingTimers.forEach((tm, id) => { clearTimeout(tm); try { fetch(`${API}/${id}`, { method: 'DELETE', keepalive: true }); } catch {} });
+        });
+
+        async function clearCompleted() {
+            const list = visible().filter(x => x.isCompleted);
+            if (!list.length) return;
+            if (!(await askConfirm(t('clearConfirm')(list.length)))) return;
+            const results = await Promise.allSettled(list.map(x => api(`/${x.id}`, { method: 'DELETE' })));
+            const ok = new Set(list.filter((_, i) => results[i].status === 'fulfilled').map(x => String(x.id)));
+            state.todos = state.todos.filter(x => !ok.has(String(x.id))); persist(); render();
+            toast(t('cleared')(ok.size));
+            if (ok.size < list.length) toast(t('delFail'), { type: 'err' });
+        }
+
+        /* ================= МОДАЛКА ПРОФИЛЯ ============ */
+        function openProfileModal() {
+            const s = stats();
+            $('#profStatTotal').textContent = s.total;
+            $('#profStatDone').textContent = s.done;
+            $('#profStatRate').textContent = s.pct + '%';
+
+            $('#inputProfName').value = state.user.name || '';
+            $('#inputProfUsername').value = state.user.username || '';
+            $('#inputProfAvatar').value = state.user.avatarUrl || '';
+
+            const m = $('#profileModal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        }
+
+        function closeProfileModal() {
+            const m = $('#profileModal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        /* ================= RENDER: WORKOUT VIEW ================= */
+        function renderWorkoutView() {
+            const prog = WORKOUT_DATA[state.workoutType];
+            const currentWeekData = prog.weeks.find(x => x.w === Number(state.workoutWeek)) || prog.weeks[0];
+            const completedCount = state.completedSets.filter(Boolean).length;
+            const sets = currentWeekData.sets;
+
+            $('#view').innerHTML = `
+      <div class="anim-up space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-surface border border-line rounded-3xl p-3 shadow-sm">
+          <div class="flex flex-wrap gap-1.5 p-1 bg-surface2 rounded-2xl">
+            <button data-wprog="pullups" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${state.workoutType === 'pullups' ? 'bg-gradient-to-r from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/25' : 'text-muted hover:text-brand-500'}">Турник (30 нед.)</button>
+            <button data-wprog="pushups" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${state.workoutType === 'pushups' ? 'bg-gradient-to-r from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/25' : 'text-muted hover:text-brand-500'}">Отжимания (15 нед.)</button>
+            <button data-wprog="dips" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${state.workoutType === 'dips' ? 'bg-gradient-to-r from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/25' : 'text-muted hover:text-brand-500'}">Брусья (17 нед.)</button>
+          </div>
+          <div class="flex items-center gap-2 px-3">
+            <label class="text-xs font-bold text-muted uppercase tracking-wider">Неделя:</label>
+            <select id="wWeekSelect" class="bg-surface2 border border-line rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-brand-400">
+              ${prog.weeks.map(item => `<option value="${item.w}" ${item.w === currentWeekData.w ? 'selected' : ''}>Неделя ${item.w}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-surface border border-line rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-line">
+            <div>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 mb-2">
+                ${prog.badge}
+              </span>
+              <h2 class="text-2xl font-extrabold tracking-tight">${prog.title}</h2>
+              <p class="text-xs text-muted mt-1">${prog.subtitle}</p>
+            </div>
+            <div class="flex items-center gap-4 bg-surface2 border border-line rounded-2xl px-5 py-3">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-muted block">Таймер отдыха</span>
+                <span id="timerVal" class="text-2xl font-mono font-extrabold text-brand-500">01:30</span>
+              </div>
+              <div class="flex flex-col gap-1">
+                <button id="startTimerBtn" class="px-3 py-1 rounded-lg text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 transition">Старт</button>
+                <button id="resetTimerBtn" class="px-3 py-1 rounded-lg text-xs font-semibold bg-surface hover:brightness-95 transition">Сброс</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-muted">5 подходов на сегодня:</span>
+              <span class="text-xs font-semibold text-muted">Выполнено: <b class="text-emerald-500">${completedCount} / 5</b></span>
+            </div>
+            <div class="grid grid-cols-5 gap-2 sm:gap-4">
+              ${sets.map((reps, idx) => {
+                const done = state.completedSets[idx];
+                return `
+                  <button data-wset="${idx}" class="flex flex-col items-center justify-center p-3 sm:p-5 rounded-2xl border transition-all ${done ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/25 scale-[1.02]' : 'bg-surface2 border-line hover:border-brand-500/50 hover:bg-soft'}">
+                    <span class="text-[10px] sm:text-xs font-bold ${done ? 'text-white/80' : 'text-muted'} mb-1">Сет ${idx + 1}</span>
+                    <span class="text-xl sm:text-3xl font-extrabold font-mono">${reps}</span>
+                    <span class="text-[9px] sm:text-[10px] mt-1 font-semibold uppercase ${done ? 'text-white' : 'text-muted'}">${done ? 'Готово ✓' : 'повторений'}</span>
+                  </button>
+                `;
+            }).join('')}
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-line">
+            <div class="flex items-center gap-6">
+              <div>
+                <span class="text-xs text-muted font-medium block">Всего повторений:</span>
+                <span class="text-xl font-extrabold font-mono text-brand-500">${currentWeekData.total}</span>
+              </div>
+              <div>
+                <span class="text-xs text-muted font-medium block">Режим программы:</span>
+                <span class="text-xs font-bold text-emerald-500">3 тренировки в неделю</span>
+              </div>
+            </div>
+            <button id="addWorkoutToTodosBtn" class="w-full sm:w-auto px-6 py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              <span>⚡ Добавить эту тренировку в задачи To-Do</span>
+            </button>
+          </div>
+        </div>
+      </div>`;
+
+            $('#wWeekSelect').addEventListener('change', e => {
+                state.workoutWeek = Number(e.target.value);
+                state.completedSets = [false, false, false, false, false];
+                renderWorkoutView();
+            });
+
+            $$('[data-wprog]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.workoutType = btn.dataset.wprog;
+                    state.workoutWeek = 1;
+                    state.completedSets = [false, false, false, false, false];
+                    renderWorkoutView();
+                });
+            });
+
+            $$('[data-wset]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.dataset.wset);
+                    state.completedSets[idx] = !state.completedSets[idx];
+                    renderWorkoutView();
+                    if (state.completedSets[idx]) {
+                        startTimerCountdown(90);
+                    }
+                });
+            });
+
+            $('#startTimerBtn').addEventListener('click', () => startTimerCountdown(state.restTimerSec));
+            $('#resetTimerBtn').addEventListener('click', resetTimerCountdown);
+
+            $('#addWorkoutToTodosBtn').addEventListener('click', async () => {
+                const title = `${prog.title}: Неделя ${currentWeekData.w} [${sets.join(' - ')}]`;
+                const description = `Подходы: Сет 1: ${sets[0]}, Сет 2: ${sets[1]}, Сет 3: ${sets[2]}, Сет 4: ${sets[3]}, Сет 5: ${sets[4]}. Сумма: ${currentWeekData.total} повторений.`;
+                const date = new Date();
+                date.setHours(19, 0, 0, 0);
+                const payload = {
+                    title: title,
+                    description: description,
+                    deadline: toLocalInput(date) + ':00',
+                    priority: 'HIGH'
+                };
+                try {
+                    await createTodo(payload);
+                    toast('Тренировка добавлена в задачи To-Do!');
+                    confetti();
+                } catch (e) {
+                    toast('Не удалось сохранить задачу воркаута', { type: 'err' });
+                }
+            });
+        }
+
+        function startTimerCountdown(seconds) {
+            if (state.timerInterval) clearInterval(state.timerInterval);
+            state.restTimerSec = seconds;
+            updateTimerDisplay();
+            state.timerInterval = setInterval(() => {
+                state.restTimerSec--;
+                if (state.restTimerSec <= 0) {
+                    clearInterval(state.timerInterval);
+                    state.restTimerSec = 90;
+                    updateTimerDisplay();
+                    toast('Отдых окончен! Время для следующего подхода 💪');
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function resetTimerCountdown() {
+            if (state.timerInterval) clearInterval(state.timerInterval);
+            state.restTimerSec = 90;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const el = document.getElementById('timerVal');
+            if (!el) return;
+            const m = Math.floor(state.restTimerSec / 60);
+            const s = state.restTimerSec % 60;
+            el.textContent = `${pad(m)}:${pad(s)}`;
+        }
+
+        /* ================= RENDER: static / nav ================= */
+        function renderStatic() {
+            document.documentElement.lang = state.lang;
+            $$('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+            $('#search').placeholder = t('search');
+            $('#qTitle').placeholder = t('quick');
+            $('#greeting').textContent = t('greeting')(state.user.name || USER_NAME[state.lang]);
+            $('#greetingSub').textContent = t('greetingSub');
+            $('#todayLabel').textContent = new Date().toLocaleDateString(t('locale'), { weekday: 'long', day: 'numeric', month: 'long' });
+            $('#qPrio').innerHTML = ['LOW', 'MEDIUM', 'HIGH'].map(p => `<option value="${p}" ${p === (state.qPrio || 'MEDIUM') ? 'selected' : ''}>${t(p)}</option>`).join('');
+            $('#modalTitle').textContent = state.editingId != null ? t('modalEdit') : t('modalNew');
+            $('#presets').innerHTML = [[0, 'pToday'], [1, 'pTomorrow'], [7, 'pWeek']].map(([d, k]) =>
+                `<button type="button" data-preset="${d}" class="px-3 py-1.5 rounded-xl bg-soft text-brand-600 dark:text-brand-300 text-xs font-bold hover:brightness-95 transition">${t(k)}</button>`).join('');
+            $$('.lang-btn').forEach(b => {
+                const on = b.dataset.lang === state.lang;
+                b.classList.toggle('bg-surface', on); b.classList.toggle('text-brand-600', on); b.classList.toggle('shadow-md', on);
+                b.classList.toggle('text-muted', !on); b.classList.toggle('dark:text-brand-300', on);
+            });
+            renderPrioPicker();
+            renderNav();
+            $('#quickForm').classList.toggle('hidden', state.view === 'stats' || state.view === 'workout');
+        }
+
+        function renderNav() {
+            const s = stats();
+            const cur = state.view === 'stats' ? 'stats' : (state.view === 'workout' ? 'workout' : (state.scope === 'all' ? 'tasks' : state.scope));
+            $$('.nav-btn').forEach(b => {
+                const on = b.dataset.nav === cur;
+                b.classList.toggle('bg-gradient-to-br', on); b.classList.toggle('from-brand-500', on); b.classList.toggle('to-violet-600', on);
+                b.classList.toggle('text-white', on); b.classList.toggle('shadow-lg', on); b.classList.toggle('shadow-brand-500/30', on);
+                b.classList.toggle('text-muted', !on); b.classList.toggle('hover:bg-soft', !on); b.classList.toggle('hover:text-brand-500', !on);
+            });
+            const counts = { tasks: s.active, today: s.today, overdue: s.overdue };
+            $$('[data-count-for]').forEach(el => {
+                const k = el.dataset.countFor, on = k === cur;
+                el.textContent = counts[k];
+                el.classList.remove('bg-white/25', 'text-white', 'bg-rose-500', 'bg-soft', 'text-brand-600');
+                el.classList.add(...(on ? ['bg-white/25', 'text-white'] : (k === 'overdue' && counts[k] > 0 ? ['bg-rose-500', 'text-white'] : ['bg-soft', 'text-brand-600'])));
+            });
+            $('#overdueDot').classList.toggle('hidden', s.overdue === 0);
+        }
+
+        function renderPrioPicker() {
+            $('#prioPicker').innerHTML = ['LOW', 'MEDIUM', 'HIGH'].map(p => `
+      <label class="cursor-pointer">
+        <input type="radio" name="prio" value="${p}" class="peer sr-only" ${state.formPrio === p ? 'checked' : ''}>
+        <div class="flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-surface2 text-muted text-sm font-semibold ring-1 ring-line ${PRIO[p].pick} transition-all hover:brightness-95">
+          <span class="w-2 h-2 rounded-full ${PRIO[p].dot}"></span>${t(p)}
+        </div>
+      </label>`).join('');
+        }
+
+        /* ================= RENDER: stats cards ================= */
+        const numSpan = (key, val, suffix = '') => `<span data-key="${key}" data-count="${val}" data-suffix="${suffix}">${lastCounts[key] ?? 0}${suffix}</span>`;
+
+        function renderStatsCards() {
+            const s = stats();
+            const cards = [
+                { key: 'total', label: t('total'), value: s.total, grad: 'from-brand-500 to-indigo-600', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+                { key: 'active', label: t('inProgress'), value: s.active, grad: 'from-amber-400 to-orange-500', icon: 'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                { key: 'done', label: t('done'), value: s.done, grad: 'from-emerald-400 to-teal-500', icon: 'M5 13l4 4L19 7' },
+            ];
+            const first = !$('#statsCards').children.length;
+            const cls = first ? 'anim-up' : '';
+            $('#statsCards').innerHTML = cards.map((c, i) => `
+      <div class="${cls} bg-surface rounded-3xl p-5 border border-line shadow-sm hover:shadow-xl hover:shadow-brand-500/10 hover:-translate-y-1 transition-all duration-300" style="animation-delay:${i * 70}ms">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br ${c.grad} grid place-content-center text-white shadow-lg mb-4">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="${c.icon}"/></svg>
+        </div>
+        <div class="text-3xl font-extrabold tabular-nums">${numSpan(c.key, c.value)}</div>
+        <div class="text-sm font-medium text-muted mt-0.5">${c.label}</div>
+      </div>`).join('') + `
+      <div class="${cls} col-span-2 lg:col-span-1 bg-gradient-to-br from-brand-600 via-brand-500 to-violet-600 rounded-3xl p-5 text-white shadow-xl shadow-brand-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" style="animation-delay:210ms">
+        <div class="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10"></div>
+        <div class="absolute -right-2 -bottom-10 w-28 h-28 rounded-full bg-white/10"></div>
+        <div class="relative flex items-end justify-between">
+          <div>
+            <div class="text-sm font-medium text-white/80">${t('progress')}</div>
+            <div class="text-4xl font-extrabold mt-1 tabular-nums">${numSpan('pct', s.pct, '%')}</div>
+          </div>
+          <div class="text-xs font-semibold bg-white/20 px-2.5 py-1 rounded-full">${s.done}/${s.total}</div>
+        </div>
+        <div class="relative mt-4 h-2.5 rounded-full bg-white/25 overflow-hidden">
+          <div class="h-full rounded-full bg-white grow" style="width:${lastBar}%" data-w="${s.pct}"></div>
+        </div>
+      </div>`;
+            lastBar = s.pct;
+            animateCounts(); growBars();
+        }
+
+        function animateCounts() {
+            $$('[data-count]').forEach(el => {
+                const key = el.dataset.key, to = +el.dataset.count, from = lastCounts[key] ?? 0, suf = el.dataset.suffix || '';
+                lastCounts[key] = to;
+                if (from === to || reduceMotion()) { el.textContent = to + suf; return; }
+                const start = performance.now(), dur = 650;
+                const step = now => {
+                    const p = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - p, 3);
+                    el.textContent = Math.round(from + (to - from) * e) + suf;
+                    if (p < 1) requestAnimationFrame(step);
+                };
+                requestAnimationFrame(step);
+            });
+        }
+        function growBars() {
+            void document.body.offsetWidth;
+            requestAnimationFrame(() => {
+                $$('[data-w]').forEach(el => el.style.width = el.dataset.w + '%');
+                $$('[data-h]').forEach(el => el.style.height = el.dataset.h + '%');
+                $$('[data-off]').forEach(el => el.style.strokeDashoffset = el.dataset.off);
+            });
+        }
+
+        /* ================= RENDER: list ================= */
+        function baseList() {
+            const q = state.search.trim().toLowerCase();
+            return visible().filter(x => {
+                if (state.scope === 'today') { const d = dl(x); if (!d || isNaN(d) || dayDiff(d) !== 0) return false; }
+                if (state.scope === 'overdue' && !isOverdue(x)) return false;
+                if (state.prioFilter !== 'all' && prioOf(x) !== state.prioFilter) return false;
+                if (q && !((x.title || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q))) return false;
+                return true;
+            });
+        }
+        function sortList(list) {
+            const dv = x => { const d = dl(x); return d && !isNaN(d) ? +d : Infinity; };
+            const cmp = {
+                deadline: (a, b) => dv(a) - dv(b) || W[prioOf(b)] - W[prioOf(a)],
+                priority: (a, b) => W[prioOf(b)] - W[prioOf(a)] || dv(a) - dv(b),
+                newest: (a, b) => (+b.id || 0) - (+a.id || 0),
+                title: (a, b) => String(a.title).localeCompare(String(b.title), t('locale')),
+            }[state.sort];
+            return [...list].sort((a, b) => (Number(a.isCompleted) - Number(b.isCompleted)) || cmp(a, b));
+        }
+
+        function taskCard(x, idx) {
+            const p = prioOf(x), done = x.isCompleted, over = isOverdue(x);
+            const fresh = !seen.has(String(x.id)); seen.add(String(x.id));
+            const anim = fresh && !reduceMotion() ? `class="anim-up" style="animation-delay:${Math.min(idx, 8) * 40}ms"` : '';
+            const hasDl = x.deadline && !isNaN(new Date(x.deadline));
+            return `
+    <article data-card="${esc(x.id)}" ${anim}>
+      <div class="group flex items-start gap-3 sm:gap-4 bg-surface rounded-3xl p-4 sm:p-5 border border-line shadow-sm hover:shadow-xl hover:shadow-brand-500/10 hover:-translate-y-0.5 transition-all duration-300 ${over ? 'border-l-4 !border-l-rose-500' : ''}">
+        <input type="checkbox" class="check mt-0.5" data-toggle="${esc(x.id)}" ${done ? 'checked' : ''} aria-label="${esc(x.title)}">
+        <div class="min-w-0 flex-1 ${done ? 'opacity-60' : ''}">
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="font-bold break-words ${done ? 'line-through text-muted' : ''}">${esc(x.title)}</h3>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ring-1 ${PRIO[p].badge}"><span class="w-1.5 h-1.5 rounded-full ${PRIO[p].dot}"></span>${t(p)}</span>
+            ${over ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white">${t('overdue')}</span>` : ''}
+          </div>
+          ${x.description ? `<p class="text-sm text-muted mt-1 break-words line-clamp-2 ${done ? 'line-through' : ''}">${esc(x.description)}</p>` : ''}
+          <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold ${over ? 'text-rose-500' : 'text-muted'}">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z"/></svg>
+            <span>${hasDl ? fmtDate(x.deadline) : t('noDeadline')}</span>
+            ${hasDl && !done ? `<span class="opacity-70">· ${rel(x.deadline)}</span>` : ''}
+          </div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          ${ENABLE_EDIT ? `<button data-edit="${esc(x.id)}" title="${t('edit')}" aria-label="${t('edit')}" class="w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-soft hover:text-brand-500 transition">
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>` : ''}
+          <button data-del="${esc(x.id)}" title="${t('del')}" aria-label="${t('del')}" class="w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-rose-500/10 hover:text-rose-500 transition">
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+    </article>`;
+        }
+
+        const GROUP_ORDER = ['overdue', 'today', 'tomorrow', 'week', 'later', 'none', 'done'];
+        const GROUP_STYLE = { overdue: 'text-rose-500', today: 'text-brand-500', tomorrow: 'text-violet-500', week: 'text-muted', later: 'text-muted', none: 'text-muted', done: 'text-emerald-500' };
+        const GROUP_LABEL = { overdue: 'gOverdue', today: 'gToday', tomorrow: 'gTomorrow', week: 'gWeek', later: 'gLater', none: 'gNone', done: 'gDone' };
+
+        function renderTasksView() {
+            const base = baseList();
+            const counts = { all: base.length, active: base.filter(x => !x.isCompleted).length, done: base.filter(x => x.isCompleted).length };
+            const list = sortList(base.filter(x => state.tab === 'all' ? true : state.tab === 'active' ? !x.isCompleted : x.isCompleted));
+            const totalDone = visible().filter(x => x.isCompleted).length;
+
+            let body = '';
+            if (state.loading) {
+                body = Array.from({ length: 3 }, () => `<div class="skeleton h-28 rounded-3xl"></div>`).join('');
+            } else if (state.error) {
+                body = `<div class="anim-pop text-center bg-surface border border-line rounded-3xl py-14 px-6">
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-rose-500/10 text-rose-500 grid place-content-center text-3xl mb-4">⚠</div>
+        <h3 class="font-bold text-lg">${t('errLoad')}</h3>
+        <p class="text-muted text-sm mt-1">${t('errLoadSub')}</p>
+        <button data-retry class="mt-5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-brand-500 to-violet-600 text-white font-semibold shadow-lg shadow-brand-500/30 hover:-translate-y-0.5 transition">${t('retry')}</button>
+      </div>`;
+            } else if (!list.length) {
+                const none = visible().length === 0;
+                body = `<div class="anim-pop text-center bg-surface border border-line rounded-3xl py-14 px-6">
+        <div class="anim-float w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500 grid place-content-center mb-4">
+          <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3 class="font-bold text-lg">${none ? t('firstTitle') : t('emptyTitle')}</h3>
+        <p class="text-muted text-sm mt-1">${none ? t('firstSub') : t('emptySub')}</p>
+        ${none ? `<button data-create class="mt-5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-brand-500 to-violet-600 text-white font-semibold shadow-lg shadow-brand-500/30 hover:-translate-y-0.5 transition">${t('firstBtn')}</button>` : ''}
+      </div>`;
+            } else if (state.sort === 'deadline') {
+                const groups = {}; list.forEach(x => (groups[groupKey(x)] ||= []).push(x));
+                let i = 0;
+                body = GROUP_ORDER.filter(g => groups[g]).map(g => `
+        <div>
+          <div class="flex items-center gap-2 mb-2.5 mt-1 px-1">
+            <span class="text-xs font-extrabold uppercase tracking-wider ${GROUP_STYLE[g]}">${t(GROUP_LABEL[g])}</span>
+            <span class="text-xs font-bold text-muted bg-surface2 rounded-full px-2 py-0.5">${groups[g].length}</span>
+            <span class="flex-1 h-px bg-line"></span>
+          </div>
+          <div class="space-y-3 mb-5">${groups[g].map(x => taskCard(x, i++)).join('')}</div>
+        </div>`).join('');
+            } else {
+                body = `<div class="space-y-3">${list.map((x, i) => taskCard(x, i)).join('')}</div>`;
+            }
+
+            const tabs = [['all', t('tabAll')], ['active', t('tabActive')], ['done', t('tabDone')]];
+            const selCls = 'bg-surface border border-line rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-brand-400 cursor-pointer';
+            $('#view').innerHTML = `
+      ${state.offline ? `<div class="anim-pop mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm font-semibold ring-1 ring-amber-500/25">
+        <span>⚠</span><span class="flex-1">${t('offline')}</span><button data-retry class="underline font-bold">${t('retry')}</button></div>` : ''}
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-5">
+        <div class="flex items-center gap-1.5 p-1.5 bg-surface border border-line rounded-2xl w-fit max-w-full overflow-x-auto">
+          ${tabs.map(([k, label]) => `
+            <button data-tab="${k}" class="px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${state.tab === k ? 'bg-gradient-to-r from-brand-500 to-violet-600 text-white shadow-md shadow-brand-500/30' : 'text-muted hover:bg-soft hover:text-brand-500'}">
+              ${label}<span class="text-xs px-1.5 py-0.5 rounded-md ${state.tab === k ? 'bg-white/25' : 'bg-surface2'}">${counts[k]}</span>
+            </button>`).join('')}
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select data-prio-filter class="${selCls}">
+            <option value="all">${t('allPrio')}</option>
+            ${['HIGH', 'MEDIUM', 'LOW'].map(p => `<option value="${p}" ${state.prioFilter === p ? 'selected' : ''}>${t(p)}</option>`).join('')}
+          </select>
+          <select data-sort class="${selCls}">
+            ${[['deadline', 'sortDeadline'], ['priority', 'sortPriority'], ['newest', 'sortNewest'], ['title', 'sortTitle']].map(([k, l]) => `<option value="${k}" ${state.sort === k ? 'selected' : ''}>${t(l)}</option>`).join('')}
+          </select>
+          ${totalDone ? `<button data-clear class="px-3 py-2.5 rounded-2xl text-sm font-semibold text-rose-500 hover:bg-rose-500/10 transition">${t('clearDone')(totalDone)}</button>` : ''}
+        </div>
+      </div>
+      <div id="list" class="space-y-3">${body}</div>`;
+            $('#list').className = '';
+        }
+
+        function renderList() {
+            if (state.view === 'tasks') renderTasksView();
+            else if (state.view === 'workout') renderWorkoutView();
+        }
+
+        /* ================= RENDER: statistics ================= */
+        function renderStatsView() {
+            const s = stats(), list = visible();
+            const byP = ['HIGH', 'MEDIUM', 'LOW'].map(p => { const a = list.filter(x => prioOf(x) === p); return { p, n: a.length, done: a.filter(x => x.isCompleted).length }; });
+            const R = 54, C = 2 * Math.PI * R, off = C * (1 - s.pct / 100);
+            const days = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() + i);
+                const n = list.filter(x => !x.isCompleted && dl(x) && !isNaN(dl(x)) && dayDiff(dl(x)) === i).length;
+                return { label: d.toLocaleDateString(t('locale'), { weekday: 'short' }), n, today: i === 0 };
+            });
+            const max = Math.max(1, ...days.map(d => d.n));
+            const urgent = sortList(list.filter(x => !x.isCompleted)).slice(0, 4);
+            const card = 'bg-surface border border-line rounded-3xl p-6 shadow-sm anim-up';
+
+            $('#view').innerHTML = `
+      <h2 class="text-xl font-extrabold mb-5 anim-up">${t('statsTitle')}</h2>
+      <div class="grid md:grid-cols-2 gap-5">
+        <div class="${card} flex items-center gap-6">
+          <svg viewBox="0 0 128 128" class="w-36 h-36 -rotate-90 shrink-0">
+            <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+            <circle cx="64" cy="64" r="${R}" fill="none" stroke="var(--soft)" stroke-width="12"/>
+            <circle class="grow" cx="64" cy="64" r="${R}" fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/>
+          </svg>
+          <div>
+            <div class="text-sm font-medium text-muted">${t('completionRate')}</div>
+            <div class="text-5xl font-extrabold text-brand-500 tabular-nums">${s.pct}%</div>
+            <div class="text-sm text-muted mt-1">${s.done} / ${s.total} ${t('ofTasks')}</div>
+          </div>
+        </div>
+
+        <div class="${card}" style="animation-delay:70ms">
+          <div class="font-bold mb-4">${t('byPriority')}</div>
+          <div class="space-y-4">
+            ${byP.map(({ p, n, done }) => `
+              <div>
+                <div class="flex justify-between text-sm font-semibold mb-1.5"><span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full ${PRIO[p].dot}"></span>${t(p)}</span><span class="text-muted">${done}/${n}</span></div>
+                <div class="h-2.5 rounded-full bg-surface2 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r ${PRIO[p].bar} grow" style="width:0" data-w="${n ? Math.round((done / n) * 100) : 0}"></div></div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="${card}" style="animation-delay:140ms">
+          <div class="font-bold mb-4">${t('next7')}</div>
+          <div class="flex items-end justify-between gap-2 h-36">
+            ${days.map(d => `
+              <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                <span class="text-xs font-bold ${d.n ? 'text-ink' : 'text-muted'}">${d.n}</span>
+                <div class="w-full flex-1 flex items-end"><div class="w-full rounded-xl grow ${d.today ? 'bg-gradient-to-t from-brand-500 to-violet-500' : 'bg-gradient-to-t from-brand-400/70 to-violet-400/70'}" style="height:0;min-height:${d.n ? 6 : 3}px" data-h="${Math.max(d.n ? 8 : 0, Math.round((d.n / max) * 100))}"></div></div>
+                <span class="text-[11px] font-semibold capitalize ${d.today ? 'text-brand-500' : 'text-muted'}">${esc(d.label)}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="${card}" style="animation-delay:210ms">
+          <div class="font-bold mb-4">${t('urgent')}</div>
+          <div class="space-y-2.5">
+            ${urgent.length ? urgent.map(x => `
+              <div class="flex items-center gap-3 p-3 rounded-2xl bg-surface2">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0 ${PRIO[prioOf(x)].dot}"></span>
+                <span class="flex-1 min-w-0 truncate font-semibold text-sm">${esc(x.title)}</span>
+                <span class="text-xs font-semibold shrink-0 ${isOverdue(x) ? 'text-rose-500' : 'text-muted'}">${x.deadline ? rel(x.deadline) : ''}</span>
+              </div>`).join('') : `<p class="text-sm text-muted">${t('nothingUrgent')}</p>`}
+          </div>
+        </div>
+
+        <div class="md:col-span-2 anim-up bg-gradient-to-r from-rose-500 to-pink-500 rounded-3xl p-6 text-white shadow-xl shadow-rose-500/20 flex items-center justify-between" style="animation-delay:280ms">
+          <div class="font-bold text-lg">${t('overdueCount')}</div>
+          <div class="text-4xl font-extrabold tabular-nums">${s.overdue}</div>
+        </div>
+      </div>`;
+            growBars();
+        }
+
+        /* ================= RENDER: ROOT ================= */
+        function render() {
+            renderStatic();
+            renderStatsCards();
+            if (state.view === 'tasks') {
+                renderTasksView();
+            } else if (state.view === 'stats') {
+                renderStatsView();
+            } else if (state.view === 'workout') {
+                renderWorkoutView();
+            }
+        }
+
+        /* ================= MODAL (create / edit) ================= */
+        function openModal(id = null) {
+            state.editingId = id;
+            const todo = id != null ? state.todos.find(x => sameId(x.id, id)) : null;
+            $('#taskForm').reset();
+            $('#fTitle').value = todo ? todo.title || '' : '';
+            $('#fDesc').value = todo ? todo.description || '' : '';
+            $('#fDeadline').value = todo ? inputFromServer(todo.deadline) : toLocalInput(presetDate(1));
+            state.formPrio = todo ? prioOf(todo) : 'MEDIUM';
+            $('#fTitleErr').classList.add('hidden'); $('#fDeadlineErr').classList.add('hidden');
+            renderStatic();
+            const m = $('#modal'); m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => $('#fTitle').focus(), 60);
+        }
+        function closeModal() { const m = $('#modal'); m.classList.add('hidden'); m.classList.remove('flex'); state.editingId = null; }
+        const modalOpen = () => !$('#modal').classList.contains('hidden');
+
+        $('#taskForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const title = $('#fTitle').value.trim(), dlv = $('#fDeadline').value;
+            $('#fTitleErr').classList.toggle('hidden', !!title);
+            $('#fDeadlineErr').classList.toggle('hidden', !!dlv);
+            if (!title || !dlv) return;
+            const payload = {
+                title, description: $('#fDesc').value.trim(),
+                deadline: dlv.length === 16 ? dlv + ':00' : dlv,
+                priority: new FormData(e.target).get('prio') || 'MEDIUM',
+            };
+            const btn = $('#submitBtn'); btn.disabled = true;
+            const editing = state.editingId != null;
+            try {
+                if (editing) await updateTodo(state.editingId, payload); else await createTodo(payload);
+                closeModal(); render(); toast(editing ? t('updated') : t('created'));
+            } catch (err) {
+                console.error(err); toast(editing ? t('editFail') : t('createFail'), { type: 'err', duration: 4200 });
+            }
+            btn.disabled = false;
+        });
+
+        $('#taskForm').addEventListener('change', e => { if (e.target.name === 'prio') state.formPrio = e.target.value; });
+        $('#presets').addEventListener('click', e => {
+            const b = e.target.closest('[data-preset]'); if (!b) return;
+            $('#fDeadline').value = toLocalInput(presetDate(+b.dataset.preset));
+        });
+
+        /* ================= QUICK ADD ================= */
+        function resetQuickDate() { $('#qDate').value = `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-${pad(new Date().getDate())}`; }
+        $('#quickForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const title = $('#qTitle').value.trim();
+            if (!title) { const f = $('#quickForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); $('#qTitle').focus(); return; }
+            const date = $('#qDate').value || (resetQuickDate(), $('#qDate').value);
+            const isToday = date === `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-${pad(new Date().getDate())}`;
+            const time = isToday && new Date().getHours() >= 18 ? '23:59:00' : '18:00:00';
+            const payload = { title, description: '', deadline: `${date}T${time}`, priority: $('#qPrio').value };
+            state.qPrio = payload.priority;
+            $('#qTitle').value = '';
+            try { await createTodo(payload); render(); toast(t('created')); }
+            catch (err) { console.error(err); $('#qTitle').value = title; toast(t('createFail'), { type: 'err' }); }
+            $('#qTitle').focus();
+        });
+
+        /* ================= EVENTS ================= */
+        $('#qPrio').addEventListener('change', e => { state.qPrio = e.target.value; });
+        $('#addBtn').addEventListener('click', () => openModal());
+        $('#fab').addEventListener('click', () => openModal());
+        $('#closeModal').addEventListener('click', closeModal);
+        $('#cancelModal').addEventListener('click', closeModal);
+        $('#modalBackdrop').addEventListener('click', closeModal);
+
+        // Telegram Auth модалка
+        $('#sidebarTgAuthBtn').addEventListener('click', openTelegramAuthModal);
+        $('#mobileTgAuthBtn').addEventListener('click', openTelegramAuthModal);
+        $('#closeTgAuthModal').addEventListener('click', closeTelegramAuthModal);
+        $('#tgAuthBackdrop').addEventListener('click', closeTelegramAuthModal);
+
+        // Интерактивные события открытия профиля
+        $('#sidebarProfileBtn').addEventListener('click', openProfileModal);
+        $('#headerAvatarBtn').addEventListener('click', openProfileModal);
+        $('#mobileProfileBtn').addEventListener('click', openProfileModal);
+        $('#closeProfileModal').addEventListener('click', closeProfileModal);
+        $('#cancelProfileBtn').addEventListener('click', closeProfileModal);
+        $('#profileModalBackdrop').addEventListener('click', closeProfileModal);
+
+        // Сохранение профиля
+        $('#profileForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const name = $('#inputProfName').value.trim();
+            const username = $('#inputProfUsername').value.trim();
+            const avatarUrl = $('#inputProfAvatar').value.trim();
+            if (!name || !username) return;
+
+            const btn = $('#saveProfileBtn');
+            btn.disabled = true;
+            await saveProfileData(name, username, avatarUrl);
+            btn.disabled = false;
+            closeProfileModal();
+        });
+
+        // Предпросмотр аватара при вводе ссылки
+        $('#inputProfAvatar').addEventListener('input', e => {
+            const val = e.target.value.trim();
+            if (val) $('#modalProfileAvatar').src = val;
+        });
+
+        document.addEventListener('keydown', e => {
+            const tag = (e.target.tagName || '').toLowerCase();
+            const typing = ['input', 'textarea', 'select'].includes(tag);
+            if (e.key === 'Escape') {
+                closeModal();
+                closeProfileModal();
+                closeTelegramAuthModal();
+                if (document.activeElement === $('#search')) $('#search').blur();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && modalOpen()) { $('#taskForm').requestSubmit(); return; }
+            if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
+            else if (e.key.toLowerCase() === 'n') { e.preventDefault(); openModal(); }
+            else if (e.key.toLowerCase() === 'p') { e.preventDefault(); openProfileModal(); }
+        });
+
+        $('#search').addEventListener('input', e => { state.search = e.target.value; if (state.view === 'tasks') renderList(); });
+
+        $$('.lang-btn').forEach(b => b.addEventListener('click', () => { state.lang = b.dataset.lang; store.set('tf-lang', state.lang); render(); }));
+        $$('.theme-btn').forEach(b => b.addEventListener('click', () => {
+            const dark = document.documentElement.classList.toggle('dark'); store.set('tf-theme', dark ? 'dark' : 'light');
+        }));
+        $$('.nav-btn').forEach(b => b.addEventListener('click', () => {
+            const k = b.dataset.nav;
+            if (k === 'stats') {
+                state.view = 'stats';
+            } else if (k === 'workout') {
+                state.view = 'workout';
+            } else {
+                state.view = 'tasks';
+                state.scope = k === 'tasks' ? 'all' : k;
+            }
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }));
+
+        $('#view').addEventListener('click', e => {
+            const tab = e.target.closest('[data-tab]');
+            if (tab) { state.tab = tab.dataset.tab; renderList(); return; }
+            const del = e.target.closest('[data-del]');
+            if (del) { requestDelete(del.dataset.del); return; }
+            const ed = e.target.closest('[data-edit]');
+            if (ed) { openModal(ed.dataset.edit); return; }
+            if (e.target.closest('[data-clear]')) { clearCompleted(); return; }
+            if (e.target.closest('[data-create]')) { $('#qTitle').focus(); return; }
+            if (e.target.closest('[data-retry]')) loadTodos();
+        });
+        $('#view').addEventListener('change', e => {
+            const cb = e.target.closest('[data-toggle]');
+            if (cb) { toggleTodo(cb.dataset.toggle, cb.checked); return; }
+            if (e.target.matches('[data-prio-filter]')) { state.prioFilter = e.target.value; renderList(); }
+            if (e.target.matches('[data-sort]')) { state.sort = e.target.value; store.set('tf-sort', state.sort); renderList(); }
+        });
+
+        const refocus = () => { if (!document.hidden && !modalOpen() && !pendingTimers.size) loadTodos({ silent: true }); };
+        document.addEventListener('visibilitychange', refocus);
+        window.addEventListener('focus', refocus);
+        setInterval(() => { if (!document.hidden && state.view === 'tasks' && !modalOpen()) renderList(); }, 60000);
+
+        /* ================= SPECIAL MODE LISTENER ================= */
+        let isSpecialActive = false;
+        const specialAudio = document.getElementById('specialAudio');
+        const iymanaBadge = document.getElementById('iymanaBadge');
+        const audioControlBtn = document.getElementById('audioControlBtn');
+
+        async function checkSpecialMode() {
+            try {
+                const res = await fetch(MODE_API);
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (data.specialMode && !isSpecialActive) {
+                    isSpecialActive = true;
+                    if (iymanaBadge) {
+                        iymanaBadge.classList.remove('hidden');
+                        iymanaBadge.classList.add('flex');
+                    }
+                    if (specialAudio) {
+                        specialAudio.play().catch(() => {
+                            // Браузерная блокировка автоплея: ждём первого клика юзера
+                            const playOnClick = () => {
+                                if (isSpecialActive) specialAudio.play();
+                                document.removeEventListener('click', playOnClick);
+                            };
+                            document.addEventListener('click', playOnClick, { once: true });
+                        });
+                    }
+                    if (audioControlBtn) audioControlBtn.textContent = '🔊';
+                } else if (!data.specialMode && isSpecialActive) {
+                    isSpecialActive = false;
+                    if (iymanaBadge) {
+                        iymanaBadge.classList.add('hidden');
+                        iymanaBadge.classList.remove('flex');
+                    }
+                    if (specialAudio) {
+                        specialAudio.pause();
+                        specialAudio.currentTime = 0;
+                    }
+                }
+            } catch (e) {
+                // Сервер недоступен в данный момент
+            }
+        }
+
+        if (audioControlBtn && specialAudio) {
+            audioControlBtn.addEventListener('click', () => {
+                if (specialAudio.paused) {
+                    specialAudio.play();
+                    audioControlBtn.textContent = '🔊';
+                } else {
+                    specialAudio.pause();
+                    audioControlBtn.textContent = '🔇';
+                }
+            });
+        }
+
+        setInterval(checkSpecialMode, 1500);
+        checkSpecialMode();
+
+        /* ================= INIT ================= */
+        resetQuickDate();
+        state.loading = state.todos.length === 0;
+        render();
+        loadProfile();
+        loadTodos();
+    })();
+</script>
+</body>
+</html>
