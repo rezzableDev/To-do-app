@@ -2,6 +2,8 @@ package org.example.todo_app.model;
 
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.hibernate.annotations.JdbcTypeCode;
+import java.sql.Types;
 
 @Entity
 @Table(name = "users")
@@ -27,9 +29,9 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
     @JsonIgnore
+    @JdbcTypeCode(Types.LONGVARBINARY)
     @Column(name = "avatar_data")
     private byte[] avatarData;
 
