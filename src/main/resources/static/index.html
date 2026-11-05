@@ -68,6 +68,10 @@
         .skeleton { position:relative; overflow:hidden; background: var(--surface2); }
         .skeleton::after { content:''; position:absolute; inset:0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); animation: shimmer 1.4s infinite; }
         .grow { transition: width .8s cubic-bezier(.22,1,.36,1), height .8s cubic-bezier(.22,1,.36,1), stroke-dashoffset 1s cubic-bezier(.22,1,.36,1); }
+        .auth-orb { position:absolute; width:13rem; height:13rem; border-radius:9999px; filter:blur(36px); opacity:.42; pointer-events:none; }
+        .auth-grid { background-image: linear-gradient(rgba(129,140,248,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(129,140,248,.10) 1px,transparent 1px); background-size:24px 24px; }
+        .auth-input { width:100%; padding:.8rem 1rem; border-radius:1rem; background:color-mix(in srgb,var(--surface2) 84%, transparent); border:1px solid var(--line); font-size:.875rem; transition:.2s; }
+        .auth-input:focus { outline:none; border-color:#818cf8; box-shadow:0 0 0 4px rgba(129,140,248,.17); }
 
         .check { appearance:none; -webkit-appearance:none; width:26px; height:26px; border-radius:9999px; border:2px solid #a5b4fc; background: transparent; cursor:pointer; display:grid; place-content:center; transition: all .2s ease; flex-shrink:0; }
         .check:hover { border-color:#6366f1; transform: scale(1.1); }
@@ -233,21 +237,22 @@
 <!-- ============ ОКНО АВТОРИЗАЦИИ ТЕЛЕГРАМ ============ -->
 <div id="tgAuthModal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
     <div id="tgAuthBackdrop" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm anim-fade"></div>
-    <div class="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 sm:p-8 anim-pop text-center">
+    <div class="relative w-full max-w-md overflow-hidden bg-surface border border-brand-400/30 rounded-[2rem] shadow-2xl p-6 sm:p-8 anim-pop text-center auth-grid">
+        <span class="auth-orb -top-24 -left-24 bg-brand-500"></span><span class="auth-orb -bottom-24 -right-24 bg-fuchsia-500"></span>
         <button id="closeTgAuthModal" class="absolute top-5 right-5 w-9 h-9 grid place-content-center rounded-xl text-muted hover:bg-surface2 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
-        <div class="w-16 h-16 mx-auto rounded-3xl bg-sky-500/10 text-sky-500 grid place-content-center mb-4">
+        <div class="relative w-16 h-16 mx-auto rounded-3xl bg-gradient-to-br from-sky-400 to-brand-600 text-white grid place-content-center mb-4 shadow-lg shadow-sky-500/30">
             <svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .36z"/></svg>
         </div>
-        <h3 class="text-xl font-extrabold mb-1">Регистрация и Вход</h3>
-        <p class="text-sm text-muted mb-4">Войдите по email или создайте аккаунт, затем подключите Telegram.</p>
+        <h3 class="relative text-2xl font-extrabold mb-1 tracking-tight">Добро пожаловать в TaskFlow</h3>
+        <p class="relative text-sm text-muted mb-5">Ваше личное пространство для задач, фокуса и прогресса.</p>
 
         <form id="passwordAuthForm" class="space-y-3 text-left mb-5">
-            <input id="authName" class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm" maxlength="120" placeholder="Имя (только для регистрации)" />
-            <input id="authUsername" class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm" maxlength="120" placeholder="Никнейм (только для регистрации)" />
-            <input id="authEmail" type="email" required class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm" placeholder="Email" />
-            <input id="authPassword" type="password" required minlength="8" class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm" placeholder="Пароль (минимум 8 символов)" />
+            <input id="authName" class="auth-input" maxlength="120" placeholder="Ваше имя — для регистрации" />
+            <input id="authUsername" class="auth-input" maxlength="120" placeholder="Никнейм — для регистрации" />
+            <input id="authEmail" type="email" required class="auth-input" placeholder="Email" autocomplete="email" />
+            <input id="authPassword" type="password" required minlength="8" class="auth-input" placeholder="Пароль — минимум 8 символов" autocomplete="current-password" />
             <div class="grid grid-cols-2 gap-2">
                 <button type="submit" class="py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-brand-500 to-violet-600">Войти</button>
                 <button id="registerBtn" type="button" class="py-2.5 rounded-xl font-bold bg-surface2 border border-line">Регистрация</button>
@@ -327,6 +332,14 @@
             <div>
                 <label class="block text-xs font-bold text-muted mb-1" data-i18n="profAvatar">Ссылка на фото (URL аватара)</label>
                 <input id="inputProfAvatar" type="url" class="w-full px-3.5 py-2.5 rounded-xl bg-surface2 border border-line text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-muted mb-1">Загрузить фото с устройства</label>
+                <label class="flex items-center justify-center gap-2 w-full px-3.5 py-3 rounded-xl border border-dashed border-brand-400/60 bg-brand-500/5 hover:bg-brand-500/10 cursor-pointer transition text-sm font-bold text-brand-500">
+                    <span>Выбрать PNG или JPG</span>
+                    <input id="inputAvatarFile" type="file" accept="image/png,image/jpeg" class="hidden" />
+                </label>
+                <p id="avatarUploadHint" class="text-[11px] text-muted mt-1">До 3 МБ. Фото сохранится в вашем профиле.</p>
             </div>
 
             <div class="pt-2 flex gap-2">
@@ -826,6 +839,25 @@
             syncUserUI();
             renderStatic();
             toast(t('profSaved'));
+        }
+
+        async function uploadAvatar(file) {
+            if (!file) return;
+            if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 3 * 1024 * 1024) {
+                throw new Error('Выберите PNG или JPG размером до 3 МБ');
+            }
+            const token = store.get('tf-access-token', '');
+            if (!token) throw new Error('Сначала войдите в аккаунт');
+            const data = new FormData();
+            data.append('file', file);
+            const response = await fetch(`${BASE_URL}/api/profile/current/avatar`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: data
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || 'Не удалось загрузить фото');
+            state.user = { ...state.user, ...result, avatarUrl: `${result.avatarUrl}?v=${Date.now()}` };
+            store.set('tf-auth-user', JSON.stringify(state.user));
+            syncUserUI();
         }
 
         /* ================= TELEGRAM АВТОРИЗАЦИЯ ================= */
@@ -1625,6 +1657,23 @@
         $('#inputProfAvatar').addEventListener('input', e => {
             const val = e.target.value.trim();
             if (val) $('#modalProfileAvatar').src = val;
+        });
+        $('#inputAvatarFile').addEventListener('change', async e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const hint = $('#avatarUploadHint');
+            $('#modalProfileAvatar').src = URL.createObjectURL(file);
+            hint.textContent = 'Загрузка…';
+            try {
+                await uploadAvatar(file);
+                hint.textContent = 'Фото сохранено в профиле.';
+                toast('Аватар обновлён');
+            } catch (error) {
+                hint.textContent = error.message;
+                toast(error.message, { type: 'err' });
+            } finally {
+                e.target.value = '';
+            }
         });
 
         document.addEventListener('keydown', e => {

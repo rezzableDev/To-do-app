@@ -27,6 +27,16 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    @JsonIgnore
+    @Column(name = "avatar_data")
+    private byte[] avatarData;
+
+    @Column(name = "avatar_content_type")
+    @JsonIgnore
+    private String avatarContentType;
+
     @Column(name = "telegram_chat_id", unique = true)
     private Long telegramChatId;
 
@@ -64,6 +74,12 @@ public class User {
 
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+
+    public byte[] getAvatarData() { return avatarData; }
+    public void setAvatarData(byte[] avatarData) { this.avatarData = avatarData; }
+
+    public String getAvatarContentType() { return avatarContentType; }
+    public void setAvatarContentType(String avatarContentType) { this.avatarContentType = avatarContentType; }
 
     public Long getTelegramChatId() { return telegramChatId; }
     public void setTelegramChatId(Long telegramChatId) { this.telegramChatId = telegramChatId; }
