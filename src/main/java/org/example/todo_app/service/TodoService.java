@@ -26,30 +26,21 @@ public class TodoService {
         this.userRepository = userRepository;
     }
 
-    private User getOrCreateCurrentUser() {
-        return userRepository.findAll().stream().findFirst().orElseGet(() -> {
-            log.info("[ИНИЦИАЛИЗАЦИЯ] Создание первичного пользователя в БД...");
-            User defaultUser = new User("Jasur", "jasur", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150");
-            return userRepository.save(defaultUser);
-        });
-    }
-
-    public List<TodoResponse> getAllTodos() {
-        User currentUser = getOrCreateCurrentUser();
+    public List<TodoResponse> getAllTodos(User currentUser) {
         List<Todo> list = todoRepository.findByUserIdOrderByIdDesc(currentUser.getId());
         log.info("[DB READ] Задачи пользователя ID {}: найдено {}", currentUser.getId(), list.size());
         return list.stream().map(TodoResponse::fromEntity).toList();
     }
 
-    public TodoResponse getTodoById(Long id) {
+    public TodoResponse getTodoById(Long id, User currentUser) {
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Задача с id " + id + " не найдена"));
+        assertOwner(todo, currentUser);
         return TodoResponse.fromEntity(todo);
     }
 
     @Transactional
-    public TodoResponse createTodo(TodoCreateRequest request) {
-        User currentUser = getOrCreateCurrentUser();
+    public TodoResponse createTodo(TodoCreateRequest request, User currentUser) {
         Todo todo = new Todo(
                 request.title(),
                 request.description(),
@@ -64,9 +55,10 @@ public class TodoService {
     }
 
     @Transactional
-    public TodoResponse updateStatus(Long id, TodoStatusUpdateRequest request) {
+    public TodoResponse updateStatus(Long id, TodoStatusUpdateRequest request, User currentUser) {
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Задача с id " + id + " не найдена"));
+        assertOwner(todo, currentUser);
         todo.setIsCompleted(request.isCompleted());
         Todo saved = todoRepository.save(todo);
         log.info("[СТАТУС ИЗМЕНЕН] ID: {} -> {}", id, saved.getIsCompleted());
@@ -74,9 +66,10 @@ public class TodoService {
     }
 
     @Transactional
-    public TodoResponse updateTodo(Long id, TodoCreateRequest request) {
+    public TodoResponse updateTodo(Long id, TodoCreateRequest request, User currentUser) {
         Todo todo = todoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Задача с id " + id + " не найдена"));
+        assertOwner(todo, currentUser);
 
         todo.setTitle(request.title());
         todo.setDescription(request.description());
@@ -88,8 +81,17 @@ public class TodoService {
     }
 
     @Transactional
-    public void deleteTodo(Long id) {
-        todoRepository.deleteById(id);
+    public void deleteTodo(Long id, User currentUser) {
+        Todo todo = todoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Задача с id " + id + " не найдена"));
+        assertOwner(todo, currentUser);
+        todoRepository.delete(todo);
         log.info("[УДАЛЕНО] Задача ID: {}", id);
+    }
+
+    private void assertOwner(Todo todo, User user) {
+        if (!todo.getUser().getId().equals(user.getId())) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Task belongs to another user");
+        }
     }
 }

@@ -6,4 +6,6 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByTelegramChatId(Long telegramChatId);
+    Optional<User> findByEmailIgnoreCase(String email);
+    Optional<User> findByUsernameIgnoreCase(String username);
 }

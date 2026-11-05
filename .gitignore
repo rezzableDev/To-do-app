@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Local secrets must never be committed.
+.env
+application-local.properties

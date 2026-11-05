@@ -2,6 +2,7 @@ package org.example.todo_app.config;
 
 import org.example.todo_app.service.TelegramBotService;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -9,6 +10,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 @Configuration
+@ConditionalOnProperty(name = "telegram.bot.enabled", havingValue = "true")
 public class TelegramBotConfig {
 
     private final TelegramBotService telegramBotService;
@@ -24,8 +26,7 @@ public class TelegramBotConfig {
             botsApi.registerBot(telegramBotService);
             System.out.println(">>> [TELEGRAM BOT] Успешно зарегистрирован и запущен! <<<");
         } catch (TelegramApiException e) {
-            System.err.println(">>> [TELEGRAM BOT ERROR] Ошибка запуска бота: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println(">>> [TELEGRAM BOT ERROR] Registration failed: " + e.getMessage());
         }
     }
 }

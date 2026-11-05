@@ -1,0 +1,14 @@
+name: Render keep alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping TaskFlow health endpoint
+        run: curl --fail --silent --show-error --max-time 30 https://taskflow-backend-y7km.onrender.com/api/app/mode > /dev/null
